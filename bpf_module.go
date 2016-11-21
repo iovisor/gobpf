@@ -157,9 +157,7 @@ func (bpf *BpfModule) load(name string, progType int) (int, error) {
 
 var kprobeRegexp = regexp.MustCompile("[+.]")
 
-func (bpf *BpfModule) AttachKprobe(event string, fd int) error {
-	evName := "p_" + kprobeRegexp.ReplaceAllString(event, "_")
-	desc := fmt.Sprintf("p:kprobes/%s %s", evName, event)
+func (bpf *BpfModule) attachProbe(evName, desc string, fd int) error {
 	if _, ok := bpf.kprobes[evName]; ok {
 		return nil
 	}
@@ -175,6 +173,20 @@ func (bpf *BpfModule) AttachKprobe(event string, fd int) error {
 	}
 	bpf.kprobes[evName] = res
 	return nil
+}
+
+func (bpf *BpfModule) AttachKprobe(event string, fd int) error {
+	evName := "p_" + kprobeRegexp.ReplaceAllString(event, "_")
+	desc := fmt.Sprintf("p:kprobes/%s %s", evName, event)
+
+	return bpf.attachProbe(evName, desc, fd)
+}
+
+func (bpf *BpfModule) AttachKretprobe(event string, fd int) error {
+	evName := "r_" + kprobeRegexp.ReplaceAllString(event, "_")
+	desc := fmt.Sprintf("r:kprobes/%s %s", evName, event)
+
+	return bpf.attachProbe(evName, desc, fd)
 }
 
 func (bpf *BpfModule) TableSize() uint64 {
