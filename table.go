@@ -43,9 +43,11 @@ func NewTable(id C.size_t, module *Module) *Table {
 func (table *Table) ID() string {
 	return C.GoString(C.bpf_table_name(table.module.p, table.id))
 }
+
 func (table *Table) Name() string {
 	return C.GoString(C.bpf_table_name(table.module.p, table.id))
 }
+
 func (table *Table) Config() map[string]interface{} {
 	mod := table.module.p
 	return map[string]interface{}{
@@ -56,28 +58,6 @@ func (table *Table) Config() map[string]interface{} {
 		"key_desc":  C.GoString(C.bpf_table_key_desc_id(mod, table.id)),
 		"leaf_desc": C.GoString(C.bpf_table_leaf_desc_id(mod, table.id)),
 	}
-}
-func (table *Table) keyToString(key []byte) string {
-	key_size := C.bpf_table_key_size_id(table.module.p, table.id)
-	keyP := unsafe.Pointer(&key[0])
-	keyStr := make([]byte, key_size*8)
-	keyStrP := (*C.char)(unsafe.Pointer(&keyStr[0]))
-	r := C.bpf_table_key_snprintf(table.module.p, table.id, keyStrP, C.size_t(len(keyStr)), keyP)
-	if r == 0 {
-		return string(keyStr)
-	}
-	return ""
-}
-func (table *Table) leafToString(leaf []byte) string {
-	leaf_size := C.bpf_table_leaf_size_id(table.module.p, table.id)
-	leafP := unsafe.Pointer(&leaf[0])
-	leafStr := make([]byte, leaf_size*8)
-	leafStrP := (*C.char)(unsafe.Pointer(&leafStr[0]))
-	r := C.bpf_table_leaf_snprintf(table.module.p, table.id, leafStrP, C.size_t(len(leafStr)), leafP)
-	if r == 0 {
-		return string(leafStr)
-	}
-	return ""
 }
 
 func (table *Table) keyToBytes(keyStr string) ([]byte, error) {
