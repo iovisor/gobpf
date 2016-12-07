@@ -33,7 +33,7 @@ extern void callback_to_go(uint64_t*, void*, int);
 import "C"
 
 type PerfMap struct {
-	table   *BpfTable
+	table   *Table
 	readers []*C.struct_perf_reader
 	stop    chan bool
 }
@@ -96,7 +96,7 @@ func callback_to_go(i *C.uint64_t, raw unsafe.Pointer, rawSize C.int) {
 }
 
 // InitPerfMap initializes a perf map with a receiver channel.
-func InitPerfMap(table *BpfTable, receiverChan chan []byte) (*PerfMap, error) {
+func InitPerfMap(table *Table, receiverChan chan []byte) (*PerfMap, error) {
 	fd := table.Config()["fd"].(int)
 	keySize := table.Config()["key_size"].(uint64)
 	leafSize := table.Config()["leaf_size"].(uint64)

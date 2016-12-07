@@ -26,7 +26,7 @@ int func1(void *ctx) {
 `
 
 func TestModuleLoad(t *testing.T) {
-	b := NewBpfModule(simple1, []string{})
+	b := NewModule(simple1, []string{})
 	if b == nil {
 		t.Fatal("prog is nil")
 	}

@@ -28,25 +28,25 @@ import (
 */
 import "C"
 
-type BpfTable struct {
+type Table struct {
 	id     C.size_t
-	module *BpfModule
+	module *Module
 }
 
-func NewBpfTable(id C.size_t, module *BpfModule) *BpfTable {
-	return &BpfTable{
+func NewTable(id C.size_t, module *Module) *Table {
+	return &Table{
 		id:     id,
 		module: module,
 	}
 }
 
-func (table *BpfTable) ID() string {
+func (table *Table) ID() string {
 	return C.GoString(C.bpf_table_name(table.module.p, table.id))
 }
-func (table *BpfTable) Name() string {
+func (table *Table) Name() string {
 	return C.GoString(C.bpf_table_name(table.module.p, table.id))
 }
-func (table *BpfTable) Config() map[string]interface{} {
+func (table *Table) Config() map[string]interface{} {
 	mod := table.module.p
 	return map[string]interface{}{
 		"name":      C.GoString(C.bpf_table_name(mod, table.id)),
@@ -57,7 +57,7 @@ func (table *BpfTable) Config() map[string]interface{} {
 		"leaf_desc": C.GoString(C.bpf_table_leaf_desc_id(mod, table.id)),
 	}
 }
-func (table *BpfTable) keyToString(key []byte) string {
+func (table *Table) keyToString(key []byte) string {
 	key_size := C.bpf_table_key_size_id(table.module.p, table.id)
 	keyP := unsafe.Pointer(&key[0])
 	keyStr := make([]byte, key_size*8)
@@ -68,7 +68,7 @@ func (table *BpfTable) keyToString(key []byte) string {
 	}
 	return ""
 }
-func (table *BpfTable) leafToString(leaf []byte) string {
+func (table *Table) leafToString(leaf []byte) string {
 	leaf_size := C.bpf_table_leaf_size_id(table.module.p, table.id)
 	leafP := unsafe.Pointer(&leaf[0])
 	leafStr := make([]byte, leaf_size*8)
@@ -80,7 +80,7 @@ func (table *BpfTable) leafToString(leaf []byte) string {
 	return ""
 }
 
-func (table *BpfTable) keyToBytes(keyStr string) ([]byte, error) {
+func (table *Table) keyToBytes(keyStr string) ([]byte, error) {
 	mod := table.module.p
 	key_size := C.bpf_table_key_size_id(mod, table.id)
 	key := make([]byte, key_size)
@@ -94,7 +94,7 @@ func (table *BpfTable) keyToBytes(keyStr string) ([]byte, error) {
 	return key, nil
 }
 
-func (table *BpfTable) leafToBytes(leafStr string) ([]byte, error) {
+func (table *Table) leafToBytes(leafStr string) ([]byte, error) {
 	mod := table.module.p
 	leaf_size := C.bpf_table_leaf_size_id(mod, table.id)
 	leaf := make([]byte, leaf_size)
@@ -114,7 +114,7 @@ type Entry struct {
 }
 
 // Get takes a key and returns the value or nil, and an 'ok' style indicator
-func (table *BpfTable) Get(keyStr string) (interface{}, bool) {
+func (table *Table) Get(keyStr string) (interface{}, bool) {
 	mod := table.module.p
 	fd := C.bpf_table_fd_id(mod, table.id)
 	leaf_size := C.bpf_table_leaf_size_id(mod, table.id)
@@ -141,7 +141,7 @@ func (table *BpfTable) Get(keyStr string) (interface{}, bool) {
 	}, true
 }
 
-func (table *BpfTable) Set(keyStr, leafStr string) error {
+func (table *Table) Set(keyStr, leafStr string) error {
 	if table == nil || table.module.p == nil {
 		panic("table is nil")
 	}
@@ -158,11 +158,11 @@ func (table *BpfTable) Set(keyStr, leafStr string) error {
 	leafP := unsafe.Pointer(&leaf[0])
 	r, err := C.bpf_update_elem(fd, keyP, leafP, 0)
 	if r != 0 {
-		return fmt.Errorf("BpfTable.Set: unable to update element (%s=%s): %s", keyStr, leafStr, err)
+		return fmt.Errorf("Table.Set: unable to update element (%s=%s): %s", keyStr, leafStr, err)
 	}
 	return nil
 }
-func (table *BpfTable) Delete(keyStr string) error {
+func (table *Table) Delete(keyStr string) error {
 	fd := C.bpf_table_fd_id(table.module.p, table.id)
 	key, err := table.keyToBytes(keyStr)
 	if err != nil {
@@ -171,11 +171,11 @@ func (table *BpfTable) Delete(keyStr string) error {
 	keyP := unsafe.Pointer(&key[0])
 	r, err := C.bpf_delete_elem(fd, keyP)
 	if r != 0 {
-		return fmt.Errorf("BpfTable.Delete: unable to delete element (%s): %s", keyStr, err)
+		return fmt.Errorf("Table.Delete: unable to delete element (%s): %s", keyStr, err)
 	}
 	return nil
 }
-func (table *BpfTable) Iter() <-chan Entry {
+func (table *Table) Iter() <-chan Entry {
 	mod := table.module.p
 	ch := make(chan Entry, 128)
 	go func() {
