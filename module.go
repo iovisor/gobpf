@@ -87,6 +87,8 @@ func newModule(code string, cflags []string) *Module {
 	}
 }
 
+// NewModule asynchronously compiles the code, generates a new BPF
+// module and returns it.
 func NewModule(code string, cflags []string) *Module {
 	bpfInitOnce.Do(bpfInit)
 	ch := make(chan *Module)
@@ -101,9 +103,10 @@ func compile() {
 	}
 }
 
+// Close takes care of closing all kprobes opened by this modules and
+// destroys the underlying libbpf module.
 func (bpf *Module) Close() {
 	C.bpf_module_destroy(bpf.p)
-	// close the kprobes opened by this module
 	for k, v := range bpf.kprobes {
 		C.perf_reader_free(v)
 		desc := fmt.Sprintf("-:kprobes/%s", k)
@@ -116,12 +119,17 @@ func (bpf *Module) Close() {
 	}
 }
 
+// LoadNet loads a program of type BPF_PROG_TYPE_SCHED_ACT.
 func (bpf *Module) LoadNet(name string) (int, error) {
 	return bpf.Load(name, C.BPF_PROG_TYPE_SCHED_ACT)
 }
+
+// LoadKprobe loads a program of type BPF_PROG_TYPE_KPROBE.
 func (bpf *Module) LoadKprobe(name string) (int, error) {
 	return bpf.Load(name, C.BPF_PROG_TYPE_KPROBE)
 }
+
+// Load a program.
 func (bpf *Module) Load(name string, progType int) (int, error) {
 	fd, ok := bpf.funcs[name]
 	if ok {
@@ -175,6 +183,7 @@ func (bpf *Module) attachProbe(evName, desc string, fd int) error {
 	return nil
 }
 
+// AttachKprobe attaches a kprobe fd to an event.
 func (bpf *Module) AttachKprobe(event string, fd int) error {
 	evName := "p_" + kprobeRegexp.ReplaceAllString(event, "_")
 	desc := fmt.Sprintf("p:kprobes/%s %s", evName, event)
@@ -182,6 +191,7 @@ func (bpf *Module) AttachKprobe(event string, fd int) error {
 	return bpf.attachProbe(evName, desc, fd)
 }
 
+// AttachKretprobe attaches a kretprobe fd to an event.
 func (bpf *Module) AttachKretprobe(event string, fd int) error {
 	evName := "r_" + kprobeRegexp.ReplaceAllString(event, "_")
 	desc := fmt.Sprintf("r:kprobes/%s %s", evName, event)
@@ -189,17 +199,20 @@ func (bpf *Module) AttachKretprobe(event string, fd int) error {
 	return bpf.attachProbe(evName, desc, fd)
 }
 
+// TableSize returns the number of tables in the module.
 func (bpf *Module) TableSize() uint64 {
 	size := C.bpf_num_tables(bpf.p)
 	return uint64(size)
 }
 
+// TableId returns the id of a table.
 func (bpf *Module) TableId(name string) C.size_t {
 	cs := C.CString(name)
 	defer C.free(unsafe.Pointer(cs))
 	return C.bpf_table_id(bpf.p, cs)
 }
 
+// TableDesc returns a map with table properties (name, fd, ...).
 func (bpf *Module) TableDesc(id uint64) map[string]interface{} {
 	i := C.size_t(id)
 	return map[string]interface{}{
@@ -212,6 +225,7 @@ func (bpf *Module) TableDesc(id uint64) map[string]interface{} {
 	}
 }
 
+// TableIter returns a receveier channel to iterate over entries.
 func (bpf *Module) TableIter() <-chan map[string]interface{} {
 	ch := make(chan map[string]interface{})
 	go func() {

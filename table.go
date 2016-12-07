@@ -33,6 +33,7 @@ type Table struct {
 	module *Module
 }
 
+// New tables returns a refernce to a BPF table.
 func NewTable(id C.size_t, module *Module) *Table {
 	return &Table{
 		id:     id,
@@ -40,14 +41,17 @@ func NewTable(id C.size_t, module *Module) *Table {
 	}
 }
 
+// ID returns the table id.
 func (table *Table) ID() string {
 	return C.GoString(C.bpf_table_name(table.module.p, table.id))
 }
 
+// Name returns the table name.
 func (table *Table) Name() string {
 	return C.GoString(C.bpf_table_name(table.module.p, table.id))
 }
 
+// Config returns the table properties (name, fd, ...).
 func (table *Table) Config() map[string]interface{} {
 	mod := table.module.p
 	return map[string]interface{}{
@@ -88,12 +92,13 @@ func (table *Table) leafToBytes(leafStr string) ([]byte, error) {
 	return leaf, nil
 }
 
+// Entry represents a table entry.
 type Entry struct {
 	Key   string
 	Value string
 }
 
-// Get takes a key and returns the value or nil, and an 'ok' style indicator
+// Get takes a key and returns the value or nil, and an 'ok' style indicator.
 func (table *Table) Get(keyStr string) (interface{}, bool) {
 	mod := table.module.p
 	fd := C.bpf_table_fd_id(mod, table.id)
@@ -121,6 +126,7 @@ func (table *Table) Get(keyStr string) (interface{}, bool) {
 	}, true
 }
 
+// Set a key to a value.
 func (table *Table) Set(keyStr, leafStr string) error {
 	if table == nil || table.module.p == nil {
 		panic("table is nil")
@@ -142,6 +148,8 @@ func (table *Table) Set(keyStr, leafStr string) error {
 	}
 	return nil
 }
+
+// Delete a key.
 func (table *Table) Delete(keyStr string) error {
 	fd := C.bpf_table_fd_id(table.module.p, table.id)
 	key, err := table.keyToBytes(keyStr)
@@ -155,6 +163,8 @@ func (table *Table) Delete(keyStr string) error {
 	}
 	return nil
 }
+
+// Iter returns a receiver channel to iterate over all table entries.
 func (table *Table) Iter() <-chan Entry {
 	mod := table.module.p
 	ch := make(chan Entry, 128)
