@@ -81,7 +81,7 @@ type chownEvent struct {
 }
 
 func main() {
-	m := bpf.NewBpfModule(source, []string{})
+	m := bpf.NewModule(source, []string{})
 	defer m.Close()
 
 	chownKprobe, err := m.LoadKprobe("kprobe__sys_fchownat")
@@ -110,7 +110,7 @@ func main() {
 
 	// 0 refers to the first BPF_PERF_OUTPUT table
 	// (here chown_events) defined in our module.
-	table := bpf.NewBpfTable(0, m)
+	table := bpf.NewTable(0, m)
 
 	channel := make(chan []byte)
 

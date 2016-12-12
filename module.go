@@ -33,8 +33,8 @@ void perf_reader_free(void *ptr);
 */
 import "C"
 
-// BpfModule type
-type BpfModule struct {
+// Module type
+type Module struct {
 	p       unsafe.Pointer
 	funcs   map[string]int
 	kprobes map[string]unsafe.Pointer
@@ -43,7 +43,7 @@ type BpfModule struct {
 type compileRequest struct {
 	code   string
 	cflags []string
-	rspCh  chan *BpfModule
+	rspCh  chan *Module
 }
 
 var (
@@ -60,8 +60,8 @@ func bpfInit() {
 	go compile()
 }
 
-// NewBpfModule constructor
-func newBpfModule(code string, cflags []string) *BpfModule {
+// NewModule constructor
+func newModule(code string, cflags []string) *Module {
 	cflagsC := make([]*C.char, len(defaultCflags)+len(cflags))
 	defer func() {
 		for _, cflag := range cflagsC {
@@ -80,16 +80,18 @@ func newBpfModule(code string, cflags []string) *BpfModule {
 	if c == nil {
 		return nil
 	}
-	return &BpfModule{
+	return &Module{
 		p:       c,
 		funcs:   make(map[string]int),
 		kprobes: make(map[string]unsafe.Pointer),
 	}
 }
 
-func NewBpfModule(code string, cflags []string) *BpfModule {
+// NewModule asynchronously compiles the code, generates a new BPF
+// module and returns it.
+func NewModule(code string, cflags []string) *Module {
 	bpfInitOnce.Do(bpfInit)
-	ch := make(chan *BpfModule)
+	ch := make(chan *Module)
 	compileCh <- compileRequest{code, cflags, ch}
 	return <-ch
 }
@@ -97,13 +99,14 @@ func NewBpfModule(code string, cflags []string) *BpfModule {
 func compile() {
 	for {
 		req := <-compileCh
-		req.rspCh <- newBpfModule(req.code, req.cflags)
+		req.rspCh <- newModule(req.code, req.cflags)
 	}
 }
 
-func (bpf *BpfModule) Close() {
+// Close takes care of closing all kprobes opened by this modules and
+// destroys the underlying libbpf module.
+func (bpf *Module) Close() {
 	C.bpf_module_destroy(bpf.p)
-	// close the kprobes opened by this module
 	for k, v := range bpf.kprobes {
 		C.perf_reader_free(v)
 		desc := fmt.Sprintf("-:kprobes/%s", k)
@@ -116,13 +119,18 @@ func (bpf *BpfModule) Close() {
 	}
 }
 
-func (bpf *BpfModule) LoadNet(name string) (int, error) {
+// LoadNet loads a program of type BPF_PROG_TYPE_SCHED_ACT.
+func (bpf *Module) LoadNet(name string) (int, error) {
 	return bpf.Load(name, C.BPF_PROG_TYPE_SCHED_ACT)
 }
-func (bpf *BpfModule) LoadKprobe(name string) (int, error) {
+
+// LoadKprobe loads a program of type BPF_PROG_TYPE_KPROBE.
+func (bpf *Module) LoadKprobe(name string) (int, error) {
 	return bpf.Load(name, C.BPF_PROG_TYPE_KPROBE)
 }
-func (bpf *BpfModule) Load(name string, progType int) (int, error) {
+
+// Load a program.
+func (bpf *Module) Load(name string, progType int) (int, error) {
 	fd, ok := bpf.funcs[name]
 	if ok {
 		return fd, nil
@@ -135,7 +143,7 @@ func (bpf *BpfModule) Load(name string, progType int) (int, error) {
 	return fd, nil
 }
 
-func (bpf *BpfModule) load(name string, progType int) (int, error) {
+func (bpf *Module) load(name string, progType int) (int, error) {
 	nameCS := C.CString(name)
 	defer C.free(unsafe.Pointer(nameCS))
 	start := (*C.struct_bpf_insn)(C.bpf_function_start(bpf.p, nameCS))
@@ -143,7 +151,7 @@ func (bpf *BpfModule) load(name string, progType int) (int, error) {
 	license := C.bpf_module_license(bpf.p)
 	version := C.bpf_module_kern_version(bpf.p)
 	if start == nil {
-		return -1, fmt.Errorf("BpfModule: unable to find %s", name)
+		return -1, fmt.Errorf("Module: unable to find %s", name)
 	}
 	logbuf := make([]byte, 65536)
 	logbufP := (*C.char)(unsafe.Pointer(&logbuf[0]))
@@ -157,7 +165,7 @@ func (bpf *BpfModule) load(name string, progType int) (int, error) {
 
 var kprobeRegexp = regexp.MustCompile("[+.]")
 
-func (bpf *BpfModule) attachProbe(evName, desc string, fd int) error {
+func (bpf *Module) attachProbe(evName, desc string, fd int) error {
 	if _, ok := bpf.kprobes[evName]; ok {
 		return nil
 	}
@@ -175,32 +183,37 @@ func (bpf *BpfModule) attachProbe(evName, desc string, fd int) error {
 	return nil
 }
 
-func (bpf *BpfModule) AttachKprobe(event string, fd int) error {
+// AttachKprobe attaches a kprobe fd to an event.
+func (bpf *Module) AttachKprobe(event string, fd int) error {
 	evName := "p_" + kprobeRegexp.ReplaceAllString(event, "_")
 	desc := fmt.Sprintf("p:kprobes/%s %s", evName, event)
 
 	return bpf.attachProbe(evName, desc, fd)
 }
 
-func (bpf *BpfModule) AttachKretprobe(event string, fd int) error {
+// AttachKretprobe attaches a kretprobe fd to an event.
+func (bpf *Module) AttachKretprobe(event string, fd int) error {
 	evName := "r_" + kprobeRegexp.ReplaceAllString(event, "_")
 	desc := fmt.Sprintf("r:kprobes/%s %s", evName, event)
 
 	return bpf.attachProbe(evName, desc, fd)
 }
 
-func (bpf *BpfModule) TableSize() uint64 {
+// TableSize returns the number of tables in the module.
+func (bpf *Module) TableSize() uint64 {
 	size := C.bpf_num_tables(bpf.p)
 	return uint64(size)
 }
 
-func (bpf *BpfModule) TableId(name string) C.size_t {
+// TableId returns the id of a table.
+func (bpf *Module) TableId(name string) C.size_t {
 	cs := C.CString(name)
 	defer C.free(unsafe.Pointer(cs))
 	return C.bpf_table_id(bpf.p, cs)
 }
 
-func (bpf *BpfModule) TableDesc(id uint64) map[string]interface{} {
+// TableDesc returns a map with table properties (name, fd, ...).
+func (bpf *Module) TableDesc(id uint64) map[string]interface{} {
 	i := C.size_t(id)
 	return map[string]interface{}{
 		"name":      C.GoString(C.bpf_table_name(bpf.p, i)),
@@ -212,7 +225,8 @@ func (bpf *BpfModule) TableDesc(id uint64) map[string]interface{} {
 	}
 }
 
-func (bpf *BpfModule) TableIter() <-chan map[string]interface{} {
+// TableIter returns a receveier channel to iterate over entries.
+func (bpf *Module) TableIter() <-chan map[string]interface{} {
 	ch := make(chan map[string]interface{})
 	go func() {
 		size := C.bpf_num_tables(bpf.p)
