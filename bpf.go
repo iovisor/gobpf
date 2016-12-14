@@ -1,4 +1,4 @@
-// Copyright 2016 PLUMgrid
+// Copyright 2016 Kinvolk
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -13,26 +13,3 @@
 // limitations under the License.
 
 package bpf
-
-import (
-	"testing"
-)
-
-var simple1 string = `
-BPF_TABLE("hash", int, int, table1, 10);
-int func1(void *ctx) {
-	return 0;
-}
-`
-
-func TestModuleLoad(t *testing.T) {
-	b := NewModule(simple1, []string{})
-	if b == nil {
-		t.Fatal("prog is nil")
-	}
-	defer b.Close()
-	_, err := b.LoadKprobe("func1")
-	if err != nil {
-		t.Fatal(err)
-	}
-}
