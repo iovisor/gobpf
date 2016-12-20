@@ -22,7 +22,7 @@ import (
 	"os/signal"
 	"unsafe"
 
-	"github.com/iovisor/gobpf"
+	bpf "github.com/iovisor/gobpf/bcc"
 )
 
 import "C"
