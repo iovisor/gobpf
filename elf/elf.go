@@ -294,6 +294,8 @@ static int perf_event_read(int page_count, int page_size, void *_state,
 */
 import "C"
 
+const useCurrentKernelVersion = 0xFFFFFFFE
+
 // Map represents a eBPF map. An eBPF map has to be declared in the
 // C file.
 type Map struct {
@@ -384,6 +386,54 @@ func elfReadVersion(file *elf.File) (int, error) {
 		return int(version), nil
 	}
 	return 0, nil
+}
+
+func utsnameStr(in []int8) string {
+	out := make([]byte, len(in))
+
+	for i := 0; i < len(in); i++ {
+		if in[i] == 0 {
+			break
+		}
+		out = append(out, byte(in[i]))
+	}
+
+	return string(out)
+}
+
+func currentVersion() (int, error) {
+	var buf syscall.Utsname
+	if err := syscall.Uname(&buf); err != nil {
+		return -1, err
+	}
+
+	releaseStr := strings.Trim(utsnameStr(buf.Release[:]), "\x00")
+
+	kernelVersionStr := strings.Split(releaseStr, "-")[0]
+
+	kernelVersionParts := strings.Split(kernelVersionStr, ".")
+	if len(kernelVersionParts) != 3 {
+		return -1, errors.New("not enough version information")
+	}
+
+	major, err := strconv.Atoi(kernelVersionParts[0])
+	if err != nil {
+		return -1, err
+	}
+
+	minor, err := strconv.Atoi(kernelVersionParts[1])
+	if err != nil {
+		return -1, err
+	}
+
+	patch, err := strconv.Atoi(kernelVersionParts[2])
+	if err != nil {
+		return -1, err
+	}
+
+	out := major*256*256 + minor*256 + patch
+
+	return out, nil
 }
 
 func elfReadMaps(file *elf.File) (map[string]*Map, error) {
@@ -514,6 +564,12 @@ func (b *Module) Load() error {
 	version, err := elfReadVersion(b.file)
 	if err != nil {
 		return err
+	}
+	if version == useCurrentKernelVersion {
+		version, err = currentVersion()
+		if err != nil {
+			return err
+		}
 	}
 
 	maps, err := elfReadMaps(b.file)

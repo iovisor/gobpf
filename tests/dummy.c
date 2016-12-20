@@ -3,8 +3,6 @@
  * clang -O2 -emit-llvm -c dummy.c -o - | llc -march=bpf -filetype=obj -o dummy.o
  */
 
-#include <linux/version.h>
-
 #define SEC(NAME) __attribute__((section(NAME), used))
 
 enum bpf_map_type {
@@ -43,4 +41,4 @@ int kprobe__dummy(struct pt_regs *ctx)
 	return 0;
 }
 
-unsigned int _version SEC("version") = LINUX_VERSION_CODE;
+unsigned int _version SEC("version") = 0xFFFFFFFE;
