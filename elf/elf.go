@@ -225,6 +225,7 @@ static int perf_event_open_tracepoint(int tracepoint_id, int pid, int cpu,
 }
 
 // from https://github.com/cilium/cilium/blob/master/pkg/bpf/perf.go
+// and https://github.com/cilium/cilium/blob/master/pkg/bpf/bpf.go
 // Apache License, Version 2.0
 
 struct event_sample {
@@ -290,6 +291,26 @@ static int perf_event_read(int page_count, int page_size, void *_state,
 	header->data_tail += e->header.size;
 
 	return e->header.type;
+}
+
+static void create_bpf_update_elem(int fd, void *key, void *value,
+			    unsigned long long flags, void *attr)
+{
+	union bpf_attr* ptr_bpf_attr;
+	ptr_bpf_attr = (union bpf_attr*)attr;
+	ptr_bpf_attr->map_fd = fd;
+	ptr_bpf_attr->key = ptr_to_u64(key);
+	ptr_bpf_attr->value = ptr_to_u64(value);
+	ptr_bpf_attr->flags = flags;
+}
+
+static void create_bpf_lookup_elem(int fd, void *key, void *value, void *attr)
+{
+	union bpf_attr* ptr_bpf_attr;
+	ptr_bpf_attr = (union bpf_attr*)attr;
+	ptr_bpf_attr->map_fd = fd;
+	ptr_bpf_attr->key = ptr_to_u64(key);
+	ptr_bpf_attr->value = ptr_to_u64(value);
 }
 */
 import "C"
@@ -808,6 +829,58 @@ func perfEventPoll(fds []C.int) error {
 	_, err := C.poll(&pfds[0], C.nfds_t(len(fds)), 500)
 	if err != nil {
 		return fmt.Errorf("error polling: %v", err.(syscall.Errno))
+	}
+
+	return nil
+}
+
+// UpdateElement stores value in key in the map stored in mp.
+// The flags can have the following values (if you include "uapi/linux/bpf.h"):
+// C.BPF_ANY to create new element or update existing;
+// C.BPF_NOEXIST to create new element if it didn't exist;
+// C.BPF_EXIST to update existing element.
+func (b *Module) UpdateElement(mp *Map, key, value unsafe.Pointer, flags uint64) error {
+	uba := C.union_bpf_attr{}
+	C.create_bpf_update_elem(
+		C.int(mp.m.fd),
+		key,
+		value,
+		C.ulonglong(flags),
+		unsafe.Pointer(&uba),
+	)
+	ret, _, err := syscall.Syscall(
+		C.__NR_bpf,
+		C.BPF_MAP_UPDATE_ELEM,
+		uintptr(unsafe.Pointer(&uba)),
+		unsafe.Sizeof(uba),
+	)
+
+	if ret != 0 || err != 0 {
+		return fmt.Errorf("unable to update element: %s", err)
+	}
+
+	return nil
+}
+
+// LookupElement looks up the given key in the the map stored in mp.
+// The value is stored in the value unsafe.Pointer.
+func (b *Module) LookupElement(mp *Map, key, value unsafe.Pointer) error {
+	uba := C.union_bpf_attr{}
+	C.create_bpf_lookup_elem(
+		C.int(mp.m.fd),
+		key,
+		value,
+		unsafe.Pointer(&uba),
+	)
+	ret, _, err := syscall.Syscall(
+		C.__NR_bpf,
+		C.BPF_MAP_LOOKUP_ELEM,
+		uintptr(unsafe.Pointer(&uba)),
+		unsafe.Sizeof(uba),
+	)
+
+	if ret != 0 || err != 0 {
+		return fmt.Errorf("unable to lookup element: %s", err)
 	}
 
 	return nil
