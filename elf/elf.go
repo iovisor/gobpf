@@ -25,9 +25,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"os"
-	"sort"
 	"strconv"
 	"strings"
 	"syscall"
@@ -66,7 +64,7 @@ typedef struct bpf_map {
 	bpf_map_def def;
 } bpf_map;
 
-static __u64 ptr_to_u64(void *ptr)
+__u64 ptr_to_u64(void *ptr)
 {
 	return (__u64) (unsigned long) ptr;
 }
@@ -209,173 +207,10 @@ static int perf_event_open_map(int pid, int cpu, int group_fd, unsigned long fla
        return syscall(__NR_perf_event_open, &attr, pid, cpu,
                       group_fd, flags);
 }
-
-static int perf_event_open_tracepoint(int tracepoint_id, int pid, int cpu,
-                           int group_fd, unsigned long flags)
-{
-	struct perf_event_attr attr = {0,};
-	attr.type = PERF_TYPE_TRACEPOINT;
-	attr.sample_type = PERF_SAMPLE_RAW;
-	attr.sample_period = 1;
-	attr.wakeup_events = 1;
-	attr.config = tracepoint_id;
-
-	return syscall(__NR_perf_event_open, &attr, pid, cpu,
-                      group_fd, flags);
-}
-
-// from https://github.com/cilium/cilium/blob/master/pkg/bpf/perf.go
-// and https://github.com/cilium/cilium/blob/master/pkg/bpf/bpf.go
-// Apache License, Version 2.0
-
-struct event_sample {
-	struct perf_event_header header;
-	uint32_t size;
-	uint8_t data[];
-};
-
-struct read_state {
-	void *buf;
-	int buf_len;
-};
-
-static int perf_event_read(int page_count, int page_size, void *_state,
-		    void *_header, void *_sample_ptr, void *_lost_ptr)
-{
-	volatile struct perf_event_mmap_page *header = _header;
-	uint64_t data_head = *((volatile uint64_t *) &header->data_head);
-	uint64_t data_tail = header->data_tail;
-	uint64_t raw_size = (uint64_t)page_count * page_size;
-	void *base  = ((uint8_t *)header) + page_size;
-	struct read_state *state = _state;
-	struct event_sample *e;
-	void *begin, *end;
-	void **sample_ptr = (void **) _sample_ptr;
-	void **lost_ptr = (void **) _lost_ptr;
-
-	// No data to read on this ring
-	__sync_synchronize();
-	if (data_head == data_tail)
-		return 0;
-
-	begin = base + data_tail % raw_size;
-	e = begin;
-	end = base + (data_tail + e->header.size) % raw_size;
-
-	if (state->buf_len < e->header.size || !state->buf) {
-		state->buf = realloc(state->buf, e->header.size);
-		state->buf_len = e->header.size;
-	}
-
-	if (end < begin) {
-		uint64_t len = base + raw_size - begin;
-
-		memcpy(state->buf, begin, len);
-		memcpy((char *) state->buf + len, base, e->header.size - len);
-
-		e = state->buf;
-	} else {
-		memcpy(state->buf, begin, e->header.size);
-	}
-
-	switch (e->header.type) {
-	case PERF_RECORD_SAMPLE:
-		*sample_ptr = state->buf;
-		break;
-	case PERF_RECORD_LOST:
-		*lost_ptr = state->buf;
-		break;
-	}
-
-	__sync_synchronize();
-	header->data_tail += e->header.size;
-
-	return e->header.type;
-}
-
-static void create_bpf_update_elem(int fd, void *key, void *value,
-			    unsigned long long flags, void *attr)
-{
-	union bpf_attr* ptr_bpf_attr;
-	ptr_bpf_attr = (union bpf_attr*)attr;
-	ptr_bpf_attr->map_fd = fd;
-	ptr_bpf_attr->key = ptr_to_u64(key);
-	ptr_bpf_attr->value = ptr_to_u64(value);
-	ptr_bpf_attr->flags = flags;
-}
-
-static void create_bpf_lookup_elem(int fd, void *key, void *value, void *attr)
-{
-	union bpf_attr* ptr_bpf_attr;
-	ptr_bpf_attr = (union bpf_attr*)attr;
-	ptr_bpf_attr->map_fd = fd;
-	ptr_bpf_attr->key = ptr_to_u64(key);
-	ptr_bpf_attr->value = ptr_to_u64(value);
-}
 */
 import "C"
 
 const useCurrentKernelVersion = 0xFFFFFFFE
-
-// Map represents a eBPF map. An eBPF map has to be declared in the
-// C file.
-type Map struct {
-	Name       string
-	SectionIdx int
-	Idx        int
-	m          *C.bpf_map
-
-	// only for perf maps
-	pmuFDs  []C.int
-	headers []*C.struct_perf_event_mmap_page
-}
-
-// Kprobe represents a kprobe or kretprobe and has to be declared
-// in the C file,
-type Kprobe struct {
-	Name  string
-	insns *C.struct_bpf_insn
-	fd    int
-	efd   int
-}
-
-type Module struct {
-	fileName string
-	file     *elf.File
-
-	log    []byte
-	maps   map[string]*Map
-	probes map[string]*Kprobe
-}
-
-type PerfMap struct {
-	name         string
-	program      *Module
-	receiverChan chan []byte
-	pollStop     chan bool
-}
-
-func NewModule(fileName string) *Module {
-	return &Module{
-		fileName: fileName,
-		probes:   make(map[string]*Kprobe),
-		log:      make([]byte, 65536),
-	}
-}
-
-func InitPerfMap(b *Module, mapName string, receiverChan chan []byte) (*PerfMap, error) {
-	_, ok := b.maps[mapName]
-	if !ok {
-		return nil, fmt.Errorf("no map with name %s", mapName)
-	}
-	// Maps are initialized in b.Load(), nothing to do here
-	return &PerfMap{
-		name:         mapName,
-		program:      b,
-		receiverChan: receiverChan,
-		pollStop:     make(chan bool),
-	}, nil
-}
 
 // Based on https://github.com/safchain/goebpf
 // Apache License
@@ -731,73 +566,17 @@ func (b *Module) Load() error {
 	return nil
 }
 
-func (b *Module) EnableKprobe(secName string) error {
-	var probeType, funcName string
-	isKretprobe := strings.HasPrefix(secName, "kretprobe/")
-	probe, ok := b.probes[secName]
-	if !ok {
-		return fmt.Errorf("no such kprobe %q", secName)
-	}
-	progFd := probe.fd
-	if isKretprobe {
-		probeType = "r"
-		funcName = strings.TrimPrefix(secName, "kretprobe/")
-	} else {
-		probeType = "p"
-		funcName = strings.TrimPrefix(secName, "kprobe/")
-	}
-	eventName := probeType + funcName
+// Map represents a eBPF map. An eBPF map has to be declared in the
+// C file.
+type Map struct {
+	Name       string
+	SectionIdx int
+	Idx        int
+	m          *C.bpf_map
 
-	kprobeEventsFileName := "/sys/kernel/debug/tracing/kprobe_events"
-	f, err := os.OpenFile(kprobeEventsFileName, os.O_APPEND|os.O_WRONLY, 0666)
-	if err != nil {
-		return fmt.Errorf("cannot open kprobe_events: %v\n", err)
-	}
-	defer f.Close()
-
-	cmd := fmt.Sprintf("%s:%s %s\n", probeType, eventName, funcName)
-	_, err = f.WriteString(cmd)
-	if err != nil {
-		return fmt.Errorf("cannot write %q to kprobe_events: %v\n", cmd, err)
-	}
-
-	kprobeIdFile := fmt.Sprintf("/sys/kernel/debug/tracing/events/kprobes/%s/id", eventName)
-	kprobeIdBytes, err := ioutil.ReadFile(kprobeIdFile)
-	if err != nil {
-		return fmt.Errorf("cannot read kprobe id: %v\n", err)
-	}
-	kprobeId, err := strconv.Atoi(strings.TrimSpace(string(kprobeIdBytes)))
-	if err != nil {
-		return fmt.Errorf("invalid kprobe id): %v\n", err)
-	}
-
-	efd := C.perf_event_open_tracepoint(C.int(kprobeId), -1 /* pid */, 0 /* cpu */, -1 /* group_fd */, C.PERF_FLAG_FD_CLOEXEC)
-	if efd < 0 {
-		return fmt.Errorf("perf_event_open for kprobe error")
-	}
-
-	_, _, err2 := syscall.Syscall(syscall.SYS_IOCTL, uintptr(efd), C.PERF_EVENT_IOC_ENABLE, 0)
-	if err2 != 0 {
-		return fmt.Errorf("error enabling perf event: %v", err2)
-	}
-
-	_, _, err2 = syscall.Syscall(syscall.SYS_IOCTL, uintptr(efd), C.PERF_EVENT_IOC_SET_BPF, uintptr(progFd))
-	if err2 != 0 {
-		return fmt.Errorf("error enabling perf event: %v", err2)
-	}
-	probe.efd = int(efd)
-	return nil
-}
-
-func (b *Module) IterKprobes() <-chan *Kprobe {
-	ch := make(chan *Kprobe)
-	go func() {
-		for name := range b.probes {
-			ch <- b.probes[name]
-		}
-		close(ch)
-	}()
-	return ch
+	// only for perf maps
+	pmuFDs  []C.int
+	headers []*C.struct_perf_event_mmap_page
 }
 
 func (b *Module) IterMaps() <-chan *Map {
@@ -813,196 +592,4 @@ func (b *Module) IterMaps() <-chan *Map {
 
 func (b *Module) Map(name string) *Map {
 	return b.maps[name]
-}
-
-func perfEventPoll(fds []C.int) error {
-	var pfds []C.struct_pollfd
-
-	for i, _ := range fds {
-		var pfd C.struct_pollfd
-
-		pfd.fd = fds[i]
-		pfd.events = C.POLLIN
-
-		pfds = append(pfds, pfd)
-	}
-	_, err := C.poll(&pfds[0], C.nfds_t(len(fds)), 500)
-	if err != nil {
-		return fmt.Errorf("error polling: %v", err.(syscall.Errno))
-	}
-
-	return nil
-}
-
-// UpdateElement stores value in key in the map stored in mp.
-// The flags can have the following values (if you include "uapi/linux/bpf.h"):
-// C.BPF_ANY to create new element or update existing;
-// C.BPF_NOEXIST to create new element if it didn't exist;
-// C.BPF_EXIST to update existing element.
-func (b *Module) UpdateElement(mp *Map, key, value unsafe.Pointer, flags uint64) error {
-	uba := C.union_bpf_attr{}
-	C.create_bpf_update_elem(
-		C.int(mp.m.fd),
-		key,
-		value,
-		C.ulonglong(flags),
-		unsafe.Pointer(&uba),
-	)
-	ret, _, err := syscall.Syscall(
-		C.__NR_bpf,
-		C.BPF_MAP_UPDATE_ELEM,
-		uintptr(unsafe.Pointer(&uba)),
-		unsafe.Sizeof(uba),
-	)
-
-	if ret != 0 || err != 0 {
-		return fmt.Errorf("unable to update element: %s", err)
-	}
-
-	return nil
-}
-
-// LookupElement looks up the given key in the the map stored in mp.
-// The value is stored in the value unsafe.Pointer.
-func (b *Module) LookupElement(mp *Map, key, value unsafe.Pointer) error {
-	uba := C.union_bpf_attr{}
-	C.create_bpf_lookup_elem(
-		C.int(mp.m.fd),
-		key,
-		value,
-		unsafe.Pointer(&uba),
-	)
-	ret, _, err := syscall.Syscall(
-		C.__NR_bpf,
-		C.BPF_MAP_LOOKUP_ELEM,
-		uintptr(unsafe.Pointer(&uba)),
-		unsafe.Sizeof(uba),
-	)
-
-	if ret != 0 || err != 0 {
-		return fmt.Errorf("unable to lookup element: %s", err)
-	}
-
-	return nil
-}
-
-// Assume the timestamp is at the beginning of the user struct
-type BytesWithTimestamp [][]byte
-
-func (a BytesWithTimestamp) Len() int      { return len(a) }
-func (a BytesWithTimestamp) Swap(i, j int) { a[i], a[j] = a[j], a[i] }
-func (a BytesWithTimestamp) Less(i, j int) bool {
-	return *(*C.uint64_t)(unsafe.Pointer(&a[i][0])) < *(*C.uint64_t)(unsafe.Pointer(&a[j][0]))
-}
-
-// Matching 'struct perf_event_header in <linux/perf_event.h>
-type PerfEventHeader struct {
-	Type      uint32
-	Misc      uint16
-	TotalSize uint16
-}
-
-// Matching 'struct perf_event_sample in kernel sources
-type PerfEventSample struct {
-	PerfEventHeader
-	Size uint32
-	data byte // Size bytes of data
-}
-
-// Matching 'struct perf_event_lost in kernel sources
-type PerfEventLost struct {
-	PerfEventHeader
-	Id   uint64
-	Lost uint64
-}
-
-// nowNanoseconds returns a time that can be compared to bpf_ktime_get_ns()
-func nowNanoseconds() uint64 {
-	var ts syscall.Timespec
-	syscall.Syscall(syscall.SYS_CLOCK_GETTIME, 1 /* CLOCK_MONOTONIC */, uintptr(unsafe.Pointer(&ts)), 0)
-	sec, nsec := ts.Unix()
-	return 1000*1000*1000*uint64(sec) + uint64(nsec)
-}
-
-func (pm *PerfMap) PollStart() {
-	var incoming BytesWithTimestamp
-
-	m, ok := pm.program.maps[pm.name]
-	if !ok {
-		// should not happen or only when pm.program is
-		// suddenly changed
-		panic(fmt.Sprintf("cannot find map %q", pm.name))
-	}
-
-	go func() {
-		cpuCount := len(m.pmuFDs)
-		pageSize := os.Getpagesize()
-		pageCount := 8
-		state := C.struct_read_state{}
-
-		for {
-			select {
-			case <-pm.pollStop:
-				break
-			default:
-				perfEventPoll(m.pmuFDs)
-			}
-
-			for {
-				var harvestCount C.int
-				beforeHarvest := nowNanoseconds()
-				for cpu := 0; cpu < cpuCount; cpu++ {
-					for {
-						var sample *PerfEventSample
-						var lost *PerfEventLost
-
-						ok := C.perf_event_read(C.int(pageCount), C.int(pageSize),
-							unsafe.Pointer(&state), unsafe.Pointer(m.headers[cpu]),
-							unsafe.Pointer(&sample), unsafe.Pointer(&lost))
-
-						switch ok {
-						case 0:
-							break // nothing to read
-						case C.PERF_RECORD_SAMPLE:
-							size := sample.Size - 4
-							b := C.GoBytes(unsafe.Pointer(&sample.data), C.int(size))
-							incoming = append(incoming, b)
-							harvestCount++
-							if *(*uint64)(unsafe.Pointer(&b[0])) > beforeHarvest {
-								// see comment below
-								break
-							} else {
-								continue
-							}
-						case C.PERF_RECORD_LOST:
-						default:
-							// TODO: handle lost/unknown events?
-						}
-						break
-					}
-
-				}
-
-				sort.Sort(incoming)
-				for i := 0; i < len(incoming); i++ {
-					if *(*uint64)(unsafe.Pointer(&incoming[0][0])) > beforeHarvest {
-						// This record has been sent after the beginning of the harvest. Stop
-						// processing here to keep the order. "incoming" is sorted, so the next
-						// elements also must not be processed now.
-						break
-					}
-					pm.receiverChan <- incoming[0]
-					// remove first element
-					incoming = incoming[1:]
-				}
-				if harvestCount == 0 && len(incoming) == 0 {
-					break
-				}
-			}
-		}
-	}()
-}
-
-func (pm *PerfMap) PollStop() {
-	pm.pollStop <- true
 }
