@@ -696,9 +696,9 @@ func (b *Module) Load() error {
 			}
 
 			// assign perf fd tp map
-			ret := C.bpf_update_element(C.int(b.maps[name].m.fd), unsafe.Pointer(&cpu), unsafe.Pointer(&pmuFD), C.BPF_ANY)
+			ret, err := C.bpf_update_element(C.int(b.maps[name].m.fd), unsafe.Pointer(&cpu), unsafe.Pointer(&pmuFD), C.BPF_ANY)
 			if ret != 0 {
-				return fmt.Errorf("cannot assign perf fd to map: %d (cpu %d)", syscall.Errno(ret), cpu)
+				return fmt.Errorf("cannot assign perf fd to map %q: %s (cpu %d)", name, err, cpu)
 			}
 
 			b.maps[name].pmuFDs = append(b.maps[name].pmuFDs, pmuFD)
