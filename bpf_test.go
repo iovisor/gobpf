@@ -41,8 +41,6 @@ func TestModuleLoadBCC(t *testing.T) {
 }
 
 func TestModuleLoadELF(t *testing.T) {
-	// Does not work yet reliable across distributions
-	return
 	b := elf.NewModule("./tests/dummy.o")
 	if b == nil {
 		t.Fatal("prog is nil")
