@@ -144,3 +144,14 @@ func (b *Module) IterKprobes() <-chan *Kprobe {
 	}()
 	return ch
 }
+
+func (b *Module) EnableKprobes() error {
+	var err error
+	for _, kprobe := range b.probes {
+		err = b.EnableKprobe(kprobe.Name)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
