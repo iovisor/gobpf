@@ -225,7 +225,7 @@ func elfReadLicense(file *elf.File) (string, error) {
 	return "", nil
 }
 
-func elfReadVersion(file *elf.File) (int, error) {
+func elfReadVersion(file *elf.File) (uint32, error) {
 	if vsec := file.Section("version"); vsec != nil {
 		data, err := vsec.Data()
 		if err != nil {
@@ -238,7 +238,7 @@ func elfReadVersion(file *elf.File) (int, error) {
 		if err != nil {
 			return 0, err
 		}
-		return int(version), nil
+		return uint32(version), nil
 	}
 	return 0, nil
 }
