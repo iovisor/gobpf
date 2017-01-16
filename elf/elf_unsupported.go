@@ -6,6 +6,10 @@ import (
 	"fmt"
 )
 
+func (b *Module) Load() error {
+	return fmt.Errorf("not supported")
+}
+
 // not supported; dummy struct
 type BPFKProbePerf struct{}
 
