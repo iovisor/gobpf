@@ -1,4 +1,4 @@
-//+build linux
+// +build linux
 
 // Copyright 2016-2017 Kinvolk
 //

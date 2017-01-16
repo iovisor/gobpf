@@ -1,4 +1,4 @@
-//+build linux
+// +build linux
 
 // Copyright 2016 Cilium Project
 // Copyright 2016 Sylvain Afchain
