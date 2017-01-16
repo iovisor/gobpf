@@ -1,6 +1,6 @@
 // +build !linux
 
-package bpf
+package elf
 
 import (
 	"fmt"
