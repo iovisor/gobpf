@@ -1,4 +1,4 @@
-//+build linux
+// +build linux
 
 // Copyright 2016-2017 Kinvolk
 //
@@ -25,79 +25,68 @@ import (
 	"syscall"
 )
 
-func utsnameStr(in []int8) string {
-	out := make([]byte, len(in))
-	for i := 0; i < len(in); i++ {
-		if in[i] == 0 {
-			break
-		}
-		out = append(out, byte(in[i]))
-	}
-	return string(out)
-}
-
 var versionRegex = regexp.MustCompile(`^(\d+)\.(\d+).(\d+).*$`)
 
-func kernelVersionFromReleaseString(releaseString string) (int, error) {
+func kernelVersionFromReleaseString(releaseString string) (uint32, error) {
 	versionParts := versionRegex.FindStringSubmatch(releaseString)
 	if len(versionParts) != 4 {
-		return -1, fmt.Errorf("got invalid release version %q (expected format '4.3.2-1')", releaseString)
+		return 0, fmt.Errorf("got invalid release version %q (expected format '4.3.2-1')", releaseString)
 	}
 	major, err := strconv.Atoi(versionParts[1])
 	if err != nil {
-		return -1, err
+		return 0, err
 	}
 
 	minor, err := strconv.Atoi(versionParts[2])
 	if err != nil {
-		return -1, err
+		return 0, err
 	}
 
 	patch, err := strconv.Atoi(versionParts[3])
 	if err != nil {
-		return -1, err
+		return 0, err
 	}
 	out := major*256*256 + minor*256 + patch
-	return out, nil
+	return uint32(out), nil
 }
 
-func currentVersionUname() (int, error) {
+func currentVersionUname() (uint32, error) {
 	var buf syscall.Utsname
 	if err := syscall.Uname(&buf); err != nil {
-		return -1, err
+		return 0, err
 	}
 	releaseString := strings.Trim(utsnameStr(buf.Release[:]), "\x00")
 	return kernelVersionFromReleaseString(releaseString)
 }
 
-func currentVersionUbuntu() (int, error) {
+func currentVersionUbuntu() (uint32, error) {
 	procVersion, err := ioutil.ReadFile("/proc/version_signature")
 	if err != nil {
-		return -1, err
+		return 0, err
 	}
 	var u1, u2, releaseString string
 	_, err = fmt.Sscanf(string(procVersion), "%s %s %s", &u1, &u2, &releaseString)
 	if err != nil {
-		return -1, err
+		return 0, err
 	}
 	return kernelVersionFromReleaseString(releaseString)
 }
 
 var debianVersionRegex = regexp.MustCompile(`.* SMP Debian (\d+\.\d+.\d+-\d+) .*`)
 
-func currentVersionDebian() (int, error) {
+func currentVersionDebian() (uint32, error) {
 	procVersion, err := ioutil.ReadFile("/proc/version")
 	if err != nil {
-		return -1, err
+		return 0, err
 	}
 	match := debianVersionRegex.FindStringSubmatch(string(procVersion))
 	if len(match) != 2 {
-		return -1, fmt.Errorf("failed to get kernel version from /proc/version: %s", procVersion)
+		return 0, fmt.Errorf("failed to get kernel version from /proc/version: %s", procVersion)
 	}
 	return kernelVersionFromReleaseString(match[1])
 }
 
-func currentVersion() (int, error) {
+func currentVersion() (uint32, error) {
 	// We need extra checks for Debian and Ubuntu as they modify
 	// the kernel version patch number for compatibilty with
 	// out-of-tree modules. Linux perf tools do the same for Ubuntu
