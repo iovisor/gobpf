@@ -23,7 +23,7 @@ import (
 var testData = []struct {
 	succeed       bool
 	releaseString string
-	kernelVersion int
+	kernelVersion uint32
 }{
 	{true, "4.1.2-3", 262402},
 	{true, "4.8.14-200.fc24.x86_64", 264206},
@@ -32,11 +32,11 @@ var testData = []struct {
 	{true, "4.1.2-rkt-v1", 262402},
 	{true, "4.1.2rkt-v1", 262402},
 	{true, "4.1.2-3 foo", 262402},
-	{false, "foo 4.1.2-3", -1},
+	{false, "foo 4.1.2-3", 0},
 	{true, "4.1.2", 262402},
-	{false, ".4.1.2", -1},
-	{false, "4.1.", -1},
-	{false, "4.1", -1},
+	{false, ".4.1.2", 0},
+	{false, "4.1.", 0},
+	{false, "4.1", 0},
 }
 
 func TestKernelVersionFromReleaseString(t *testing.T) {
