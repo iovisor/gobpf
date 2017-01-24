@@ -108,6 +108,7 @@ type PerfMap struct {
 	program      *Module
 	receiverChan chan []byte
 	pollStop     chan bool
+	timestamp    func(*[]byte) uint64
 }
 
 // Matching 'struct perf_event_sample in kernel sources
@@ -131,8 +132,20 @@ func InitPerfMap(b *Module, mapName string, receiverChan chan []byte) (*PerfMap,
 	}, nil
 }
 
+// SetTimestampFunc registers a timestamp callback that will be used to
+// reorder the perf events chronologically.
+//
+// If not set, the order of events sent through receiverChan is not guaranteed.
+//
+// Typically, the ebpf program will use bpf_ktime_get_ns() to get a timestamp
+// and store it in the perf event. The perf event struct is opaque to this
+// package, hence the need for a callback.
+func (pm *PerfMap) SetTimestampFunc(timestamp func(*[]byte) uint64) {
+	pm.timestamp = timestamp
+}
+
 func (pm *PerfMap) PollStart() {
-	var incoming BytesWithTimestamp
+	incoming := OrderedBytesArray{timestamp: pm.timestamp}
 
 	m, ok := pm.program.maps[pm.name]
 	if !ok {
@@ -173,9 +186,12 @@ func (pm *PerfMap) PollStart() {
 						case C.PERF_RECORD_SAMPLE:
 							size := sample.Size - 4
 							b := C.GoBytes(unsafe.Pointer(&sample.data), C.int(size))
-							incoming = append(incoming, b)
+							incoming.bytesArray = append(incoming.bytesArray, b)
 							harvestCount++
-							if *(*uint64)(unsafe.Pointer(&b[0])) > beforeHarvest {
+							if pm.timestamp == nil {
+								continue
+							}
+							if incoming.timestamp(&b) > beforeHarvest {
 								// see comment below
 								break
 							} else {
@@ -187,22 +203,23 @@ func (pm *PerfMap) PollStart() {
 						}
 						break
 					}
-
 				}
 
-				sort.Sort(incoming)
-				for i := 0; i < len(incoming); i++ {
-					if *(*uint64)(unsafe.Pointer(&incoming[0][0])) > beforeHarvest {
+				if incoming.timestamp != nil {
+					sort.Sort(incoming)
+				}
+				for i := 0; i < incoming.Len(); i++ {
+					if incoming.timestamp != nil && incoming.timestamp(&incoming.bytesArray[0]) > beforeHarvest {
 						// This record has been sent after the beginning of the harvest. Stop
 						// processing here to keep the order. "incoming" is sorted, so the next
 						// elements also must not be processed now.
 						break
 					}
-					pm.receiverChan <- incoming[0]
+					pm.receiverChan <- incoming.bytesArray[0]
 					// remove first element
-					incoming = incoming[1:]
+					incoming.bytesArray = incoming.bytesArray[1:]
 				}
-				if harvestCount == 0 && len(incoming) == 0 {
+				if harvestCount == 0 && len(incoming.bytesArray) == 0 {
 					break
 				}
 			}
@@ -234,12 +251,21 @@ func perfEventPoll(fds []C.int) error {
 }
 
 // Assume the timestamp is at the beginning of the user struct
-type BytesWithTimestamp [][]byte
+type OrderedBytesArray struct {
+	bytesArray [][]byte
+	timestamp  func(*[]byte) uint64
+}
 
-func (a BytesWithTimestamp) Len() int      { return len(a) }
-func (a BytesWithTimestamp) Swap(i, j int) { a[i], a[j] = a[j], a[i] }
-func (a BytesWithTimestamp) Less(i, j int) bool {
-	return *(*C.uint64_t)(unsafe.Pointer(&a[i][0])) < *(*C.uint64_t)(unsafe.Pointer(&a[j][0]))
+func (a OrderedBytesArray) Len() int {
+	return len(a.bytesArray)
+}
+
+func (a OrderedBytesArray) Swap(i, j int) {
+	a.bytesArray[i], a.bytesArray[j] = a.bytesArray[j], a.bytesArray[i]
+}
+
+func (a OrderedBytesArray) Less(i, j int) bool {
+	return *(*C.uint64_t)(unsafe.Pointer(&a.bytesArray[i][0])) < *(*C.uint64_t)(unsafe.Pointer(&a.bytesArray[j][0]))
 }
 
 // Matching 'struct perf_event_header in <linux/perf_event.h>
