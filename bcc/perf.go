@@ -28,7 +28,9 @@ import (
 #include <bcc/libbpf.h>
 #include <bcc/perf_reader.h>
 
-extern void callback_to_go(uint64_t*, void*, int);
+// perf_reader_raw_cb as defined in bcc libbpf.h
+// typedef void (*perf_reader_raw_cb)(void *cb_cookie, void *raw, int raw_size);
+extern void callback_to_go(void*, void*, int);
 */
 import "C"
 
@@ -87,8 +89,8 @@ func lookupCallback(i uint64) *callbackData {
 // function and give that to C-code since the cgo tool will generate a
 // stub in C that should be called."
 //export callback_to_go
-func callback_to_go(i *C.uint64_t, raw unsafe.Pointer, rawSize C.int) {
-	callbackData := lookupCallback(uint64(*i))
+func callback_to_go(cbCookie unsafe.Pointer, raw unsafe.Pointer, rawSize C.int) {
+	callbackData := lookupCallback(uint64(uintptr(cbCookie)))
 	receiverChan := callbackData.receiverChan
 	go func() {
 		receiverChan <- C.GoBytes(raw, rawSize)
@@ -119,7 +121,7 @@ func InitPerfMap(table *Table, receiverChan chan []byte) (*PerfMap, error) {
 	cpu := 0
 	res := 0
 	for res == 0 {
-		reader := C.bpf_open_perf_buffer((C.perf_reader_raw_cb)(unsafe.Pointer(C.callback_to_go)), unsafe.Pointer(&callbackDataIndex), -1, C.int(cpu))
+		reader := C.bpf_open_perf_buffer((C.perf_reader_raw_cb)(unsafe.Pointer(C.callback_to_go)), unsafe.Pointer(uintptr(callbackDataIndex)), -1, C.int(cpu))
 		if reader == nil {
 			return nil, fmt.Errorf("failed to open perf buffer")
 		}
