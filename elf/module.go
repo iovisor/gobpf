@@ -21,6 +21,7 @@ package elf
 import (
 	"debug/elf"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"os"
 	"strconv"
@@ -51,8 +52,9 @@ static int perf_event_open_tracepoint(int tracepoint_id, int pid, int cpu,
 import "C"
 
 type Module struct {
-	fileName string
-	file     *elf.File
+	fileName   string
+	fileReader io.ReaderAt
+	file       *elf.File
 
 	log    []byte
 	maps   map[string]*Map
@@ -73,6 +75,14 @@ func NewModule(fileName string) *Module {
 		fileName: fileName,
 		probes:   make(map[string]*Kprobe),
 		log:      make([]byte, 65536),
+	}
+}
+
+func NewModuleFromReader(fileReader io.ReaderAt) *Module {
+	return &Module{
+		fileReader: fileReader,
+		probes:     make(map[string]*Kprobe),
+		log:        make([]byte, 65536),
 	}
 }
 
