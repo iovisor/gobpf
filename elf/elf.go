@@ -354,18 +354,14 @@ func (b *Module) Load() error {
 		if err != nil {
 			return err
 		}
-
-		b.file, err = elf.NewFile(fileReader)
-		if err != nil {
-			return err
-		}
 		defer fileReader.Close()
-	} else {
-		var err error
-		b.file, err = elf.NewFile(b.fileReader)
-		if err != nil {
-			return err
-		}
+		b.fileReader = fileReader
+	}
+
+	var err error
+	b.file, err = elf.NewFile(b.fileReader)
+	if err != nil {
+		return err
 	}
 
 	license, err := elfReadLicense(b.file)

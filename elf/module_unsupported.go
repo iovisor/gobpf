@@ -2,12 +2,19 @@
 
 package elf
 
-import "fmt"
+import (
+	"fmt"
+	"io"
+)
 
 type Module struct{}
 type Kprobe struct{}
 
 func NewModule(fileName string) *Module {
+	return nil
+}
+
+func NewModuleFromReader(fileReader io.ReaderAt) *Module {
 	return nil
 }
 
