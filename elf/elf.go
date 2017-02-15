@@ -478,11 +478,19 @@ func (b *Module) Load() error {
 		}
 	}
 
-	for name, _ := range b.maps {
+	return b.initializePerfMaps()
+}
+
+func (b *Module) initializePerfMaps() error {
+	for name, m := range b.maps {
 		var cpu C.int = 0
 
+		if m.m != nil && m.m.def._type != C.BPF_MAP_TYPE_PERF_EVENT_ARRAY {
+			continue
+		}
+
 		for {
-			pmuFD := C.perf_event_open_map(-1 /* pid */, cpu /* cpu */, -1 /* group_fd */, C.PERF_FLAG_FD_CLOEXEC)
+			pmuFD, err := C.perf_event_open_map(-1 /* pid */, cpu /* cpu */, -1 /* group_fd */, C.PERF_FLAG_FD_CLOEXEC)
 			if pmuFD < 0 {
 				if cpu == 0 {
 					return fmt.Errorf("perf_event_open for map error: %v", err)
@@ -518,6 +526,7 @@ func (b *Module) Load() error {
 			cpu++
 		}
 	}
+
 	return nil
 }
 
