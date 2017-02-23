@@ -108,9 +108,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	// 0 refers to the first BPF_PERF_OUTPUT table
-	// (here chown_events) defined in our module.
-	table := bpf.NewTable(0, m)
+	table := bpf.NewTable(m.TableId("chown_events"), m)
 
 	channel := make(chan []byte)
 
