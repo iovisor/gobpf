@@ -144,7 +144,7 @@ func (table *Table) Set(keyStr, leafStr string) error {
 	leafP := unsafe.Pointer(&leaf[0])
 	r, err := C.bpf_update_elem(fd, keyP, leafP, 0)
 	if r != 0 {
-		return fmt.Errorf("Table.Set: unable to update element (%s=%s): %s", keyStr, leafStr, err)
+		return fmt.Errorf("Table.Set: unable to update element (%s=%s): %v", keyStr, leafStr, err)
 	}
 	return nil
 }
@@ -159,7 +159,7 @@ func (table *Table) Delete(keyStr string) error {
 	keyP := unsafe.Pointer(&key[0])
 	r, err := C.bpf_delete_elem(fd, keyP)
 	if r != 0 {
-		return fmt.Errorf("Table.Delete: unable to delete element (%s): %s", keyStr, err)
+		return fmt.Errorf("Table.Delete: unable to delete element (%s): %v", keyStr, err)
 	}
 	return nil
 }

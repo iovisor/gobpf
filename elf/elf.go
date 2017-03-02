@@ -257,9 +257,9 @@ func elfReadMaps(file *elf.File) (map[string]*Map, error) {
 			mapCount := len(data) / C.sizeof_struct_bpf_map_def
 			for i := 0; i < mapCount; i++ {
 				pos := i * C.sizeof_struct_bpf_map_def
-				cm := C.bpf_load_map((*C.bpf_map_def)(unsafe.Pointer(&data[pos])))
+				cm, err := C.bpf_load_map((*C.bpf_map_def)(unsafe.Pointer(&data[pos])))
 				if cm == nil {
-					return nil, fmt.Errorf("error while loading map %s", section.Name)
+					return nil, fmt.Errorf("error while loading map %q: %v", section.Name, err)
 				}
 
 				m := &Map{
@@ -517,7 +517,7 @@ func (b *Module) initializePerfMaps() error {
 			// assign perf fd tp map
 			ret, err := C.bpf_update_element(C.int(b.maps[name].m.fd), unsafe.Pointer(&cpu), unsafe.Pointer(&pmuFD), C.BPF_ANY)
 			if ret != 0 {
-				return fmt.Errorf("cannot assign perf fd to map %q: %s (cpu %d)", name, err, cpu)
+				return fmt.Errorf("cannot assign perf fd to map %q: %v (cpu %d)", name, err, cpu)
 			}
 
 			b.maps[name].pmuFDs = append(b.maps[name].pmuFDs, pmuFD)
