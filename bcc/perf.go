@@ -44,6 +44,8 @@ type callbackData struct {
 	receiverChan chan []byte
 }
 
+const BPF_PERF_READER_PAGE_CNT = 8
+
 var byteOrder binary.ByteOrder
 var callbackRegister = make(map[uint64]*callbackData)
 var callbackIndex uint64
@@ -121,7 +123,7 @@ func InitPerfMap(table *Table, receiverChan chan []byte) (*PerfMap, error) {
 	cpu := 0
 	res := 0
 	for res == 0 {
-		reader, err := C.bpf_open_perf_buffer((C.perf_reader_raw_cb)(unsafe.Pointer(C.callback_to_go)), unsafe.Pointer(uintptr(callbackDataIndex)), -1, C.int(cpu))
+		reader, err := C.bpf_open_perf_buffer((C.perf_reader_raw_cb)(unsafe.Pointer(C.callback_to_go)), unsafe.Pointer(uintptr(callbackDataIndex)), -1, C.int(cpu), BPF_PERF_READER_PAGE_CNT)
 		if reader == nil {
 			return nil, fmt.Errorf("failed to open perf buffer: %v", err)
 		}
