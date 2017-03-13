@@ -29,15 +29,17 @@ import (
 import "C"
 
 type Table struct {
-	id     C.size_t
-	module *Module
+	id      C.size_t
+	pageCnt C.int
+	module  *Module
 }
 
 // New tables returns a refernce to a BPF table.
-func NewTable(id C.size_t, module *Module) *Table {
+func NewTable(id C.size_t, pageCnt C.int, module *Module) *Table {
 	return &Table{
-		id:     id,
-		module: module,
+		id:      id,
+		pageCnt: pageCnt,
+		module:  module,
 	}
 }
 

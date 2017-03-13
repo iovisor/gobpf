@@ -108,7 +108,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	table := bpf.NewTable(m.TableId("chown_events"), m)
+	table := bpf.NewTable(m.TableId("chown_events"), 8, m)
 
 	channel := make(chan []byte)
 

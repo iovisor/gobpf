@@ -17,6 +17,7 @@ package bcc
 import (
 	"encoding/binary"
 	"fmt"
+	"runtime"
 	"sync"
 	"unsafe"
 )
@@ -118,15 +119,14 @@ func InitPerfMap(table *Table, receiverChan chan []byte) (*PerfMap, error) {
 
 	readers := []*C.struct_perf_reader{}
 
-	cpu := 0
-	res := 0
-	for res == 0 {
-		reader, err := C.bpf_open_perf_buffer((C.perf_reader_raw_cb)(unsafe.Pointer(C.callback_to_go)), unsafe.Pointer(uintptr(callbackDataIndex)), -1, C.int(cpu))
+	for cpu := 0; cpu < runtime.NumCPU(); cpu++ {
+
+		reader, err := C.bpf_open_perf_buffer((C.perf_reader_raw_cb)(unsafe.Pointer(C.callback_to_go)), unsafe.Pointer(uintptr(callbackDataIndex)), -1, C.int(cpu), C.int(table.pageCnt))
 		if reader == nil {
 			return nil, fmt.Errorf("failed to open perf buffer: %v", err)
 		}
 
-		perfFd := C.perf_reader_fd(reader)
+		perfFd := C.perf_reader_fd((*C.struct_perf_reader)(reader))
 
 		readers = append(readers, (*C.struct_perf_reader)(reader))
 
@@ -137,8 +137,6 @@ func InitPerfMap(table *Table, receiverChan chan []byte) (*PerfMap, error) {
 			return nil, fmt.Errorf("unable to initialize perf map: %v", err)
 		}
 
-		res = int(C.bpf_get_next_key(C.int(fd), keyP, keyP))
-		cpu++
 	}
 	return &PerfMap{
 		table,
