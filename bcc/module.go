@@ -46,6 +46,11 @@ type compileRequest struct {
 	rspCh  chan *Module
 }
 
+const (
+	BPF_PROBE_ENTRY = iota
+	BPF_PROBE_RETURN
+)
+
 var (
 	defaultCflags []string
 	compileCh     chan compileRequest
@@ -165,16 +170,16 @@ func (bpf *Module) load(name string, progType int) (int, error) {
 
 var kprobeRegexp = regexp.MustCompile("[+.]")
 
-func (bpf *Module) attachProbe(evName, desc string, fd int) error {
+func (bpf *Module) attachProbe(evName string, attachType uint32, fnName string, fd int) error {
 	if _, ok := bpf.kprobes[evName]; ok {
 		return nil
 	}
 
 	evNameCS := C.CString(evName)
-	descCS := C.CString(desc)
-	res := C.bpf_attach_kprobe(C.int(fd), evNameCS, descCS, -1, 0, -1, nil, nil)
+	fnNameCS := C.CString(fnName)
+	res := C.bpf_attach_kprobe(C.int(fd), attachType, evNameCS, fnNameCS, -1, 0, -1, nil, nil)
 	C.free(unsafe.Pointer(evNameCS))
-	C.free(unsafe.Pointer(descCS))
+	C.free(unsafe.Pointer(fnNameCS))
 
 	if res == nil {
 		return fmt.Errorf("Failed to attach BPF kprobe")
@@ -183,20 +188,18 @@ func (bpf *Module) attachProbe(evName, desc string, fd int) error {
 	return nil
 }
 
-// AttachKprobe attaches a kprobe fd to an event.
-func (bpf *Module) AttachKprobe(event string, fd int) error {
-	evName := "p_" + kprobeRegexp.ReplaceAllString(event, "_")
-	desc := fmt.Sprintf("p:kprobes/%s %s", evName, event)
+// AttachKprobe attaches a kprobe fd to a function.
+func (bpf *Module) AttachKprobe(fnName string, fd int) error {
+	evName := "p_" + kprobeRegexp.ReplaceAllString(fnName, "_")
 
-	return bpf.attachProbe(evName, desc, fd)
+	return bpf.attachProbe(evName, BPF_PROBE_ENTRY, fnName, fd)
 }
 
-// AttachKretprobe attaches a kretprobe fd to an event.
-func (bpf *Module) AttachKretprobe(event string, fd int) error {
-	evName := "r_" + kprobeRegexp.ReplaceAllString(event, "_")
-	desc := fmt.Sprintf("r:kprobes/%s %s", evName, event)
+// AttachKretprobe attaches a kretprobe fd to a function.
+func (bpf *Module) AttachKretprobe(fnName string, fd int) error {
+	evName := "r_" + kprobeRegexp.ReplaceAllString(fnName, "_")
 
-	return bpf.attachProbe(evName, desc, fd)
+	return bpf.attachProbe(evName, BPF_PROBE_RETURN, fnName, fd)
 }
 
 // TableSize returns the number of tables in the module.

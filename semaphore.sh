@@ -42,6 +42,7 @@ for kernel_version in "${kernel_versions[@]}"; do
     --mount=volume=gobpf,target=/go/src/github.com/iovisor/gobpf \
     --environment=GOPATH=/go \
     --environment=C_INCLUDE_PATH="${kernel_api_header_dir}" \
+    --environment=BCC_KERNEL_MODULES_SUFFIX="source" \
     --exec=/bin/sh -- -c \
     'cd /go/src/github.com/iovisor/gobpf &&
       mount -t tmpfs tmpfs /tmp &&
