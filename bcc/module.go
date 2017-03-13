@@ -107,12 +107,11 @@ func compile() {
 // destroys the underlying libbpf module.
 func (bpf *Module) Close() {
 	C.bpf_module_destroy(bpf.p)
-	for k, v := range bpf.kprobes {
+	for evName, v := range bpf.kprobes {
 		C.perf_reader_free(v)
-		desc := fmt.Sprintf("-:kprobes/%s", k)
-		descCS := C.CString(desc)
-		C.bpf_detach_kprobe(descCS)
-		C.free(unsafe.Pointer(descCS))
+		evNameCS := C.CString(evName)
+		C.bpf_detach_kprobe(evNameCS)
+		C.free(unsafe.Pointer(evNameCS))
 	}
 	for _, fd := range bpf.funcs {
 		syscall.Close(fd)
@@ -165,16 +164,16 @@ func (bpf *Module) load(name string, progType int) (int, error) {
 
 var kprobeRegexp = regexp.MustCompile("[+.]")
 
-func (bpf *Module) attachProbe(evName, desc string, fd int) error {
+func (bpf *Module) attachProbe(fnName string, attachType uint32, evName string, fd int) error {
 	if _, ok := bpf.kprobes[evName]; ok {
 		return nil
 	}
 
+	fnNameCS := C.CString(fnName)
 	evNameCS := C.CString(evName)
-	descCS := C.CString(desc)
-	res := C.bpf_attach_kprobe(C.int(fd), evNameCS, descCS, -1, 0, -1, nil, nil)
+	res := C.bpf_attach_kprobe(C.int(fd), attachType, evNameCS, fnNameCS, -1, 0, -1, nil, nil)
 	C.free(unsafe.Pointer(evNameCS))
-	C.free(unsafe.Pointer(descCS))
+	C.free(unsafe.Pointer(fnNameCS))
 
 	if res == nil {
 		return fmt.Errorf("Failed to attach BPF kprobe")
@@ -185,18 +184,18 @@ func (bpf *Module) attachProbe(evName, desc string, fd int) error {
 
 // AttachKprobe attaches a kprobe fd to an event.
 func (bpf *Module) AttachKprobe(event string, fd int) error {
-	evName := "p_" + kprobeRegexp.ReplaceAllString(event, "_")
-	desc := fmt.Sprintf("p:kprobes/%s %s", evName, event)
+	fnName := kprobeRegexp.ReplaceAllString(event, "_")
+	evName := fmt.Sprintf("p_%s", fnName)
 
-	return bpf.attachProbe(evName, desc, fd)
+	return bpf.attachProbe(fnName, C.BPF_PROBE_ENTRY, evName, fd)
 }
 
 // AttachKretprobe attaches a kretprobe fd to an event.
 func (bpf *Module) AttachKretprobe(event string, fd int) error {
-	evName := "r_" + kprobeRegexp.ReplaceAllString(event, "_")
-	desc := fmt.Sprintf("r:kprobes/%s %s", evName, event)
+	fnName := kprobeRegexp.ReplaceAllString(event, "_")
+	evName := fmt.Sprintf("r_%s", fnName)
 
-	return bpf.attachProbe(evName, desc, fd)
+	return bpf.attachProbe(fnName, C.BPF_PROBE_RETURN, evName, fd)
 }
 
 // TableSize returns the number of tables in the module.
