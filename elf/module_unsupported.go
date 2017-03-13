@@ -29,3 +29,15 @@ func (b *Module) IterKprobes() <-chan *Kprobe {
 func (b *Module) EnableKprobes() error {
 	return fmt.Errorf("not supported")
 }
+
+func (b *Module) IterCgroupProgram() <-chan *CgroupProgram {
+	return nil
+}
+
+func (b *Module) CgroupProgram(name string) *CgroupProgram {
+	return nil
+}
+
+func (b *Module) AttachProgram(cgroupProg *CgroupProgram, cgroupPath string, attachType AttachType) error {
+	return fmt.Errorf("not supported")
+}

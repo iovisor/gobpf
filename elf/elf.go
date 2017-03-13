@@ -43,7 +43,7 @@ import (
 #include <assert.h>
 #include <sys/socket.h>
 #include <linux/unistd.h>
-#include <linux/bpf.h>
+#include "include/bpf.h"
 #include <poll.h>
 #include <linux/perf_event.h>
 #include <sys/resource.h>
@@ -411,10 +411,25 @@ func (b *Module) Load() error {
 			processed[section.Info] = true
 
 			secName := rsection.Name
+
 			isKprobe := strings.HasPrefix(secName, "kprobe/")
 			isKretprobe := strings.HasPrefix(secName, "kretprobe/")
+			isCgroupSkb := strings.HasPrefix(secName, "cgroup/skb")
+			isCgroupSock := strings.HasPrefix(secName, "cgroup/sock")
 
-			if isKprobe || isKretprobe {
+			var progType uint32
+			switch {
+			case isKprobe:
+				fallthrough
+			case isKretprobe:
+				progType = uint32(C.BPF_PROG_TYPE_KPROBE)
+			case isCgroupSkb:
+				progType = uint32(C.BPF_PROG_TYPE_CGROUP_SKB)
+			case isCgroupSock:
+				progType = uint32(C.BPF_PROG_TYPE_CGROUP_SOCK)
+			}
+
+			if isKprobe || isKretprobe || isCgroupSkb || isCgroupSock {
 				rdata, err := rsection.Data()
 				if err != nil {
 					return err
@@ -431,17 +446,31 @@ func (b *Module) Load() error {
 
 				insns := (*C.struct_bpf_insn)(unsafe.Pointer(&rdata[0]))
 
-				progFd := C.bpf_prog_load(C.BPF_PROG_TYPE_KPROBE,
+				progFd := C.bpf_prog_load(progType,
 					insns, C.int(rsection.Size),
 					(*C.char)(lp), C.int(version),
 					(*C.char)(unsafe.Pointer(&b.log[0])), C.int(len(b.log)))
 				if progFd < 0 {
 					return fmt.Errorf("error while loading %q:\n%s", secName, b.log)
 				}
-				b.probes[secName] = &Kprobe{
-					Name:  secName,
-					insns: insns,
-					fd:    int(progFd),
+
+				switch {
+				case isKprobe:
+					fallthrough
+				case isKretprobe:
+					b.probes[secName] = &Kprobe{
+						Name:  secName,
+						insns: insns,
+						fd:    int(progFd),
+					}
+				case isCgroupSkb:
+					fallthrough
+				case isCgroupSock:
+					b.cgroupPrograms[secName] = &CgroupProgram{
+						Name:  secName,
+						insns: insns,
+						fd:    int(progFd),
+					}
 				}
 			}
 		}
@@ -452,7 +481,26 @@ func (b *Module) Load() error {
 			continue
 		}
 
-		if strings.HasPrefix(section.Name, "kprobe/") || strings.HasPrefix(section.Name, "kretprobe/") {
+		secName := section.Name
+
+		isKprobe := strings.HasPrefix(secName, "kprobe/")
+		isKretprobe := strings.HasPrefix(secName, "kretprobe/")
+		isCgroupSkb := strings.HasPrefix(secName, "cgroup/skb")
+		isCgroupSock := strings.HasPrefix(secName, "cgroup/sock")
+
+		var progType uint32
+		switch {
+		case isKprobe:
+			fallthrough
+		case isKretprobe:
+			progType = uint32(C.BPF_PROG_TYPE_KPROBE)
+		case isCgroupSkb:
+			progType = uint32(C.BPF_PROG_TYPE_CGROUP_SKB)
+		case isCgroupSock:
+			progType = uint32(C.BPF_PROG_TYPE_CGROUP_SOCK)
+		}
+
+		if isKprobe || isKretprobe || isCgroupSkb || isCgroupSock {
 			data, err := section.Data()
 			if err != nil {
 				return err
@@ -464,16 +512,31 @@ func (b *Module) Load() error {
 
 			insns := (*C.struct_bpf_insn)(unsafe.Pointer(&data[0]))
 
-			fd := C.bpf_prog_load(C.BPF_PROG_TYPE_KPROBE,
+			progFd := C.bpf_prog_load(progType,
 				insns, C.int(section.Size),
 				(*C.char)(lp), C.int(version),
 				(*C.char)(unsafe.Pointer(&b.log[0])), C.int(len(b.log)))
-			if fd < 0 {
+			if progFd < 0 {
 				return fmt.Errorf("error while loading %q:\n%s", section.Name, b.log)
 			}
-			b.probes[section.Name] = &Kprobe{
-				Name: section.Name,
-				fd:   int(fd),
+
+			switch {
+			case isKprobe:
+				fallthrough
+			case isKretprobe:
+				b.probes[secName] = &Kprobe{
+					Name:  secName,
+					insns: insns,
+					fd:    int(progFd),
+				}
+			case isCgroupSkb:
+				fallthrough
+			case isCgroupSock:
+				b.cgroupPrograms[secName] = &CgroupProgram{
+					Name:  secName,
+					insns: insns,
+					fd:    int(progFd),
+				}
 			}
 		}
 	}
