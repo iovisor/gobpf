@@ -114,10 +114,9 @@ func (bpf *Module) Close() {
 	C.bpf_module_destroy(bpf.p)
 	for k, v := range bpf.kprobes {
 		C.perf_reader_free(v)
-		desc := fmt.Sprintf("-:kprobes/%s", k)
-		descCS := C.CString(desc)
-		C.bpf_detach_kprobe(descCS)
-		C.free(unsafe.Pointer(descCS))
+		evNameCS := C.CString(k)
+		C.bpf_detach_kprobe(evNameCS)
+		C.free(unsafe.Pointer(evNameCS))
 	}
 	for _, fd := range bpf.funcs {
 		syscall.Close(fd)
