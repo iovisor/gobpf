@@ -8,21 +8,46 @@ files.
 
 gobpf is in early stage, but usable. Input and contributions are very much welcome.
 
-To get started, first install (either by package or source) libbcc. Then, simply:
-
-```
-go install github.com/iovisor/gobpf
-sudo -E go test github.com/iovisor/gobpf
-```
-
-Example code can be found in the `examples/` directory.
-
 We recommend to vendor gobpf and pin its version as the API probably
 undergoes change during development.
 
-## Building ELF object files
+## Requirements
 
-To build ELF object files for usage with `github.com/iovisor/gobpf/elf`,
-you must use distinct sections (`SEC("...")`). Currently, only
-`kprobe/...` and `maps/...` are supported. For an example, see
-`tests/dummy.c`.
+eBPF requires a recent Linux kernel. A good feature list can be found here:
+https://github.com/iovisor/bcc/blob/master/docs/kernel-versions.md
+
+### `github.com/iovisor/gobpf/bcc`
+
+Install [libbcc](https://github.com/iovisor/bcc/blob/master/INSTALL.md) (either by package or source).
+
+### `github.com/iovisor/gobpf/elf`
+
+#### Building ELF object files
+
+To build ELF object files for usage with the elf package, you must use distinct
+sections (`SEC("...")`). Currently, `kprobe/...`, `cgroup/skb`, `cgroup/sock`
+and `maps/...` are supported.
+
+See `tests/dummy.c` for a minimal dummy and https://github.com/weaveworks/tcptracer-bpf
+for a real world example.
+
+## Examples
+
+Example code can be found in the `examples/` directory, e.g.
+
+```
+sudo -E go run examples/perf.go
+```
+
+## Tests
+
+The `semaphore.sh` script can be used to run the tests in rkt stage1-kvm
+containers on different kernel versions. To run all tests on the host system,
+use `go test` as follows:
+
+```
+go test -tags integration -v \
+  github.com/iovisor/gobpf \
+  github.com/iovisor/gobpf/elf \
+  github.com/iovisor/gobpf/bcc
+```
