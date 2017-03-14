@@ -114,9 +114,11 @@ func (bpf *Module) Close() {
 	C.bpf_module_destroy(bpf.p)
 	for k, v := range bpf.kprobes {
 		C.perf_reader_free(v)
-		desc := fmt.Sprintf("-:kprobes/%s", k)
-		descCS := C.CString(desc)
-		C.bpf_detach_kprobe(descCS)
+		descCS := C.CString(k)
+		ret, err := C.bpf_detach_kprobe(descCS)
+		if ret != 0 {
+			fmt.Errorf("fail to detach kprobe, %s", err)
+		}
 		C.free(unsafe.Pointer(descCS))
 	}
 	for _, fd := range bpf.funcs {
