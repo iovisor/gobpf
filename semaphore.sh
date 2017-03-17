@@ -47,7 +47,7 @@ for kernel_version in "${kernel_versions[@]}"; do
     'cd /go/src/github.com/iovisor/gobpf &&
       mount -t tmpfs tmpfs /tmp &&
       mount -t debugfs debugfs /sys/kernel/debug/ &&
-      go test -tags integration -v ./...'
+      go test -tags integration -v github.com/iovisor/gobpf github.com/iovisor/gobpf/elf github.com/iovisor/gobpf/bcc'
 
   test_status=$(sudo ./rkt/rkt status "$(<rkt-uuid)" | awk '/app-/{split($0,a,"=")} END{print a[2]}')
   if [[ $test_status -ne 0 ]]; then
