@@ -128,7 +128,7 @@ func InitPerfMap(table *Table, receiverChan chan []byte) (*PerfMap, error) {
 			return nil, fmt.Errorf("failed to open perf buffer: %v", err)
 		}
 
-		perfFd := C.perf_reader_fd(reader)
+		perfFd := C.perf_reader_fd((*C.struct_perf_reader)(reader))
 
 		readers = append(readers, (*C.struct_perf_reader)(reader))
 
