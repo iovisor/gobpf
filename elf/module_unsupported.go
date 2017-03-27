@@ -18,7 +18,7 @@ func NewModuleFromReader(fileReader io.ReaderAt) *Module {
 	return nil
 }
 
-func (b *Module) EnableKprobe(secName string) error {
+func (b *Module) EnableKprobe(secName string, maxactive int) error {
 	return fmt.Errorf("not supported")
 }
 
@@ -26,7 +26,7 @@ func (b *Module) IterKprobes() <-chan *Kprobe {
 	return nil
 }
 
-func (b *Module) EnableKprobes() error {
+func (b *Module) EnableKprobes(maxactive int) error {
 	return fmt.Errorf("not supported")
 }
 

@@ -117,7 +117,7 @@ func NewModuleFromReader(fileReader io.ReaderAt) *Module {
 	}
 }
 
-func (b *Module) EnableKprobe(secName string) error {
+func (b *Module) EnableKprobe(secName string, maxactive int) error {
 	var probeType, funcName string
 	isKretprobe := strings.HasPrefix(secName, "kretprobe/")
 	probe, ok := b.probes[secName]
@@ -125,9 +125,13 @@ func (b *Module) EnableKprobe(secName string) error {
 		return fmt.Errorf("no such kprobe %q", secName)
 	}
 	progFd := probe.fd
+	var maxactiveStr string
 	if isKretprobe {
 		probeType = "r"
 		funcName = strings.TrimPrefix(secName, "kretprobe/")
+		if maxactive > 0 {
+			maxactiveStr = fmt.Sprintf("%d", maxactive)
+		}
 	} else {
 		probeType = "p"
 		funcName = strings.TrimPrefix(secName, "kprobe/")
@@ -141,10 +145,17 @@ func (b *Module) EnableKprobe(secName string) error {
 	}
 	defer f.Close()
 
-	cmd := fmt.Sprintf("%s:%s %s\n", probeType, eventName, funcName)
+	cmd := fmt.Sprintf("%s%d:%s %s\n", probeType, maxactiveStr, eventName, funcName)
 	_, err = f.WriteString(cmd)
 	if err != nil {
-		return fmt.Errorf("cannot write %q to kprobe_events: %v\n", cmd, err)
+		// fallback without maxactive for kretprobes
+		if isKretprobe {
+			cmd = fmt.Sprintf("%s:%s %s\n", probeType, eventName, funcName)
+			_, err = f.WriteString(cmd)
+		}
+		if err != nil {
+			return fmt.Errorf("cannot write %q to kprobe_events: %v\n", cmd, err)
+		}
 	}
 
 	kprobeIdFile := fmt.Sprintf("/sys/kernel/debug/tracing/events/kprobes/%s/id", eventName)
@@ -186,10 +197,10 @@ func (b *Module) IterKprobes() <-chan *Kprobe {
 	return ch
 }
 
-func (b *Module) EnableKprobes() error {
+func (b *Module) EnableKprobes(maxactive int) error {
 	var err error
 	for _, kprobe := range b.probes {
-		err = b.EnableKprobe(kprobe.Name)
+		err = b.EnableKprobe(kprobe.Name, maxactive)
 		if err != nil {
 			return err
 		}
