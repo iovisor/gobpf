@@ -145,7 +145,7 @@ func (b *Module) EnableKprobe(secName string, maxactive int) error {
 	}
 	defer f.Close()
 
-	cmd := fmt.Sprintf("%s%d:%s %s\n", probeType, maxactiveStr, eventName, funcName)
+	cmd := fmt.Sprintf("%s%s:%s %s\n", probeType, maxactiveStr, eventName, funcName)
 	_, err = f.WriteString(cmd)
 	if err != nil {
 		// fallback without maxactive for kretprobes
