@@ -151,6 +151,12 @@ func writeKprobeEvent(probeType, eventName, funcName, maxactiveStr string) (int,
 	return kprobeId, nil
 }
 
+// EnableKprobe enables a kprobe/kretprobe identified by secName.
+// For kretprobes, you can configure the maximum number of instances
+// of the function that can be probed simultaneously with maxactive.
+// If maxactive is 0 it will be set to the default value: if CONFIG_PREEMPT is
+// enabled, this is max(10, 2*NR_CPUS); otherwise, it is NR_CPUS.
+// For kprobes, maxactive is ignored.
 func (b *Module) EnableKprobe(secName string, maxactive int) error {
 	var probeType, funcName string
 	isKretprobe := strings.HasPrefix(secName, "kretprobe/")
@@ -199,6 +205,8 @@ func (b *Module) EnableKprobe(secName string, maxactive int) error {
 	return nil
 }
 
+// IterKprobes returns a channel that emits the kprobes that included in the
+// module.
 func (b *Module) IterKprobes() <-chan *Kprobe {
 	ch := make(chan *Kprobe)
 	go func() {
@@ -210,6 +218,8 @@ func (b *Module) IterKprobes() <-chan *Kprobe {
 	return ch
 }
 
+// EnableKprobes enables all kprobes/kretprobes included in the module. The
+// value in maxactive will be applied to all the kretprobes.
 func (b *Module) EnableKprobes(maxactive int) error {
 	var err error
 	for _, kprobe := range b.probes {
