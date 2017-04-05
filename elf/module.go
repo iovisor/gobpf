@@ -20,6 +20,7 @@ package elf
 
 import (
 	"debug/elf"
+	"errors"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -117,6 +118,39 @@ func NewModuleFromReader(fileReader io.ReaderAt) *Module {
 	}
 }
 
+var kprobeIDNotExist error = errors.New("kprobe id file doesn't exist")
+
+func writeKprobeEvent(probeType, eventName, funcName, maxactiveStr string) (int, error) {
+	kprobeEventsFileName := "/sys/kernel/debug/tracing/kprobe_events"
+	f, err := os.OpenFile(kprobeEventsFileName, os.O_APPEND|os.O_WRONLY, 0666)
+	if err != nil {
+		return -1, fmt.Errorf("cannot open kprobe_events: %v\n", err)
+	}
+	defer f.Close()
+
+	cmd := fmt.Sprintf("%s%s:%s %s\n", probeType, maxactiveStr, eventName, funcName)
+	_, err = f.WriteString(cmd)
+	if err != nil {
+		return -1, fmt.Errorf("cannot write %q to kprobe_events: %v\n", cmd, err)
+	}
+
+	kprobeIdFile := fmt.Sprintf("/sys/kernel/debug/tracing/events/kprobes/%s/id", eventName)
+	kprobeIdBytes, err := ioutil.ReadFile(kprobeIdFile)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return -1, kprobeIDNotExist
+		}
+		return -1, fmt.Errorf("cannot read kprobe id: %v\n", err)
+	}
+
+	kprobeId, err := strconv.Atoi(strings.TrimSpace(string(kprobeIdBytes)))
+	if err != nil {
+		return -1, fmt.Errorf("invalid kprobe id: %v\n", err)
+	}
+
+	return kprobeId, nil
+}
+
 func (b *Module) EnableKprobe(secName string, maxactive int) error {
 	var probeType, funcName string
 	isKretprobe := strings.HasPrefix(secName, "kretprobe/")
@@ -138,34 +172,13 @@ func (b *Module) EnableKprobe(secName string, maxactive int) error {
 	}
 	eventName := probeType + funcName
 
-	kprobeEventsFileName := "/sys/kernel/debug/tracing/kprobe_events"
-	f, err := os.OpenFile(kprobeEventsFileName, os.O_APPEND|os.O_WRONLY, 0666)
-	if err != nil {
-		return fmt.Errorf("cannot open kprobe_events: %v\n", err)
+	kprobeId, err := writeKprobeEvent(probeType, eventName, funcName, maxactiveStr)
+	// fallback without maxactive
+	if err == kprobeIDNotExist {
+		kprobeId, err = writeKprobeEvent(probeType, eventName, funcName, "")
 	}
-	defer f.Close()
-
-	cmd := fmt.Sprintf("%s%s:%s %s\n", probeType, maxactiveStr, eventName, funcName)
-	_, err = f.WriteString(cmd)
 	if err != nil {
-		// fallback without maxactive for kretprobes
-		if isKretprobe {
-			cmd = fmt.Sprintf("%s:%s %s\n", probeType, eventName, funcName)
-			_, err = f.WriteString(cmd)
-		}
-		if err != nil {
-			return fmt.Errorf("cannot write %q to kprobe_events: %v\n", cmd, err)
-		}
-	}
-
-	kprobeIdFile := fmt.Sprintf("/sys/kernel/debug/tracing/events/kprobes/%s/id", eventName)
-	kprobeIdBytes, err := ioutil.ReadFile(kprobeIdFile)
-	if err != nil {
-		return fmt.Errorf("cannot read kprobe id: %v\n", err)
-	}
-	kprobeId, err := strconv.Atoi(strings.TrimSpace(string(kprobeIdBytes)))
-	if err != nil {
-		return fmt.Errorf("invalid kprobe id): %v\n", err)
+		return err
 	}
 
 	efd := C.perf_event_open_tracepoint(C.int(kprobeId), -1 /* pid */, 0 /* cpu */, -1 /* group_fd */, C.PERF_FLAG_FD_CLOEXEC)
