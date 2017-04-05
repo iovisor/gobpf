@@ -9,6 +9,8 @@ import (
 
 type Module struct{}
 type Kprobe struct{}
+type CgroupProgram struct{}
+type AttachType struct{}
 
 func NewModule(fileName string) *Module {
 	return nil
