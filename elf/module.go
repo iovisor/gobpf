@@ -20,6 +20,7 @@ package elf
 
 import (
 	"debug/elf"
+	"errors"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -117,7 +118,46 @@ func NewModuleFromReader(fileReader io.ReaderAt) *Module {
 	}
 }
 
-func (b *Module) EnableKprobe(secName string) error {
+var kprobeIDNotExist error = errors.New("kprobe id file doesn't exist")
+
+func writeKprobeEvent(probeType, eventName, funcName, maxactiveStr string) (int, error) {
+	kprobeEventsFileName := "/sys/kernel/debug/tracing/kprobe_events"
+	f, err := os.OpenFile(kprobeEventsFileName, os.O_APPEND|os.O_WRONLY, 0666)
+	if err != nil {
+		return -1, fmt.Errorf("cannot open kprobe_events: %v\n", err)
+	}
+	defer f.Close()
+
+	cmd := fmt.Sprintf("%s%s:%s %s\n", probeType, maxactiveStr, eventName, funcName)
+	_, err = f.WriteString(cmd)
+	if err != nil {
+		return -1, fmt.Errorf("cannot write %q to kprobe_events: %v\n", cmd, err)
+	}
+
+	kprobeIdFile := fmt.Sprintf("/sys/kernel/debug/tracing/events/kprobes/%s/id", eventName)
+	kprobeIdBytes, err := ioutil.ReadFile(kprobeIdFile)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return -1, kprobeIDNotExist
+		}
+		return -1, fmt.Errorf("cannot read kprobe id: %v\n", err)
+	}
+
+	kprobeId, err := strconv.Atoi(strings.TrimSpace(string(kprobeIdBytes)))
+	if err != nil {
+		return -1, fmt.Errorf("invalid kprobe id: %v\n", err)
+	}
+
+	return kprobeId, nil
+}
+
+// EnableKprobe enables a kprobe/kretprobe identified by secName.
+// For kretprobes, you can configure the maximum number of instances
+// of the function that can be probed simultaneously with maxactive.
+// If maxactive is 0 it will be set to the default value: if CONFIG_PREEMPT is
+// enabled, this is max(10, 2*NR_CPUS); otherwise, it is NR_CPUS.
+// For kprobes, maxactive is ignored.
+func (b *Module) EnableKprobe(secName string, maxactive int) error {
 	var probeType, funcName string
 	isKretprobe := strings.HasPrefix(secName, "kretprobe/")
 	probe, ok := b.probes[secName]
@@ -125,36 +165,26 @@ func (b *Module) EnableKprobe(secName string) error {
 		return fmt.Errorf("no such kprobe %q", secName)
 	}
 	progFd := probe.fd
+	var maxactiveStr string
 	if isKretprobe {
 		probeType = "r"
 		funcName = strings.TrimPrefix(secName, "kretprobe/")
+		if maxactive > 0 {
+			maxactiveStr = fmt.Sprintf("%d", maxactive)
+		}
 	} else {
 		probeType = "p"
 		funcName = strings.TrimPrefix(secName, "kprobe/")
 	}
 	eventName := probeType + funcName
 
-	kprobeEventsFileName := "/sys/kernel/debug/tracing/kprobe_events"
-	f, err := os.OpenFile(kprobeEventsFileName, os.O_APPEND|os.O_WRONLY, 0666)
-	if err != nil {
-		return fmt.Errorf("cannot open kprobe_events: %v\n", err)
+	kprobeId, err := writeKprobeEvent(probeType, eventName, funcName, maxactiveStr)
+	// fallback without maxactive
+	if err == kprobeIDNotExist {
+		kprobeId, err = writeKprobeEvent(probeType, eventName, funcName, "")
 	}
-	defer f.Close()
-
-	cmd := fmt.Sprintf("%s:%s %s\n", probeType, eventName, funcName)
-	_, err = f.WriteString(cmd)
 	if err != nil {
-		return fmt.Errorf("cannot write %q to kprobe_events: %v\n", cmd, err)
-	}
-
-	kprobeIdFile := fmt.Sprintf("/sys/kernel/debug/tracing/events/kprobes/%s/id", eventName)
-	kprobeIdBytes, err := ioutil.ReadFile(kprobeIdFile)
-	if err != nil {
-		return fmt.Errorf("cannot read kprobe id: %v\n", err)
-	}
-	kprobeId, err := strconv.Atoi(strings.TrimSpace(string(kprobeIdBytes)))
-	if err != nil {
-		return fmt.Errorf("invalid kprobe id): %v\n", err)
+		return err
 	}
 
 	efd := C.perf_event_open_tracepoint(C.int(kprobeId), -1 /* pid */, 0 /* cpu */, -1 /* group_fd */, C.PERF_FLAG_FD_CLOEXEC)
@@ -175,6 +205,8 @@ func (b *Module) EnableKprobe(secName string) error {
 	return nil
 }
 
+// IterKprobes returns a channel that emits the kprobes that included in the
+// module.
 func (b *Module) IterKprobes() <-chan *Kprobe {
 	ch := make(chan *Kprobe)
 	go func() {
@@ -186,10 +218,12 @@ func (b *Module) IterKprobes() <-chan *Kprobe {
 	return ch
 }
 
-func (b *Module) EnableKprobes() error {
+// EnableKprobes enables all kprobes/kretprobes included in the module. The
+// value in maxactive will be applied to all the kretprobes.
+func (b *Module) EnableKprobes(maxactive int) error {
 	var err error
 	for _, kprobe := range b.probes {
-		err = b.EnableKprobe(kprobe.Name)
+		err = b.EnableKprobe(kprobe.Name, maxactive)
 		if err != nil {
 			return err
 		}
