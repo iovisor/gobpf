@@ -208,7 +208,7 @@ func (pm *PerfMap) PollStart() {
 				if incoming.timestamp != nil {
 					sort.Sort(incoming)
 				}
-				for i := 0; i < incoming.Len(); i++ {
+				for incoming.Len() > 0 {
 					if incoming.timestamp != nil && incoming.timestamp(&incoming.bytesArray[0]) > beforeHarvest {
 						// This record has been sent after the beginning of the harvest. Stop
 						// processing here to keep the order. "incoming" is sorted, so the next
