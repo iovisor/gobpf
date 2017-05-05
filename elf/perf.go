@@ -265,7 +265,7 @@ func (a OrderedBytesArray) Swap(i, j int) {
 }
 
 func (a OrderedBytesArray) Less(i, j int) bool {
-	return *(*C.uint64_t)(unsafe.Pointer(&a.bytesArray[i][0])) < *(*C.uint64_t)(unsafe.Pointer(&a.bytesArray[j][0]))
+	return a.timestamp(&a.bytesArray[i]) < a.timestamp(&a.bytesArray[j])
 }
 
 // Matching 'struct perf_event_header in <linux/perf_event.h>
