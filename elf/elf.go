@@ -598,7 +598,7 @@ func (b *Module) initializePerfMaps(parameters map[string]SectionParams) error {
 				return fmt.Errorf("error enabling perf event: %v", err2)
 			}
 
-			// assign perf fd tp map
+			// assign perf fd to map
 			ret, err := C.bpf_update_element(C.int(b.maps[name].m.fd), unsafe.Pointer(&cpu), unsafe.Pointer(&pmuFD), C.BPF_ANY)
 			if ret != 0 {
 				return fmt.Errorf("cannot assign perf fd to map %q: %v (cpu %d)", name, err, cpu)
