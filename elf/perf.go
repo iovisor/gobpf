@@ -107,6 +107,7 @@ type PerfMap struct {
 	name         string
 	program      *Module
 	receiverChan chan []byte
+	lostChan     chan uint64
 	pollStop     chan bool
 	timestamp    func(*[]byte) uint64
 }
@@ -118,7 +119,7 @@ type PerfEventSample struct {
 	data byte // Size bytes of data
 }
 
-func InitPerfMap(b *Module, mapName string, receiverChan chan []byte) (*PerfMap, error) {
+func InitPerfMap(b *Module, mapName string, receiverChan chan []byte, lostChan chan uint64) (*PerfMap, error) {
 	_, ok := b.maps[mapName]
 	if !ok {
 		return nil, fmt.Errorf("no map with name %s", mapName)
@@ -128,6 +129,7 @@ func InitPerfMap(b *Module, mapName string, receiverChan chan []byte) (*PerfMap,
 		name:         mapName,
 		program:      b,
 		receiverChan: receiverChan,
+		lostChan:     lostChan,
 		pollStop:     make(chan bool),
 	}, nil
 }
@@ -168,10 +170,12 @@ func (pm *PerfMap) PollStart() {
 				perfEventPoll(m.pmuFDs)
 			}
 
+		harvestLoop:
 			for {
 				var harvestCount C.int
 				beforeHarvest := nowNanoseconds()
 				for cpu := 0; cpu < cpuCount; cpu++ {
+				ringBufferLoop:
 					for {
 						var sample *PerfEventSample
 						var lost *PerfEventLost
@@ -182,26 +186,26 @@ func (pm *PerfMap) PollStart() {
 
 						switch ok {
 						case 0:
-							break // nothing to read
+							break ringBufferLoop // nothing to read
 						case C.PERF_RECORD_SAMPLE:
 							size := sample.Size - 4
 							b := C.GoBytes(unsafe.Pointer(&sample.data), C.int(size))
 							incoming.bytesArray = append(incoming.bytesArray, b)
 							harvestCount++
 							if pm.timestamp == nil {
-								continue
+								continue ringBufferLoop
 							}
 							if incoming.timestamp(&b) > beforeHarvest {
 								// see comment below
-								break
-							} else {
-								continue
+								break ringBufferLoop
 							}
 						case C.PERF_RECORD_LOST:
+							if pm.lostChan != nil {
+								pm.lostChan <- lost.Lost
+							}
 						default:
-							// TODO: handle lost/unknown events?
+							// ignore unknown events
 						}
-						break
 					}
 				}
 
@@ -213,14 +217,14 @@ func (pm *PerfMap) PollStart() {
 						// This record has been sent after the beginning of the harvest. Stop
 						// processing here to keep the order. "incoming" is sorted, so the next
 						// elements also must not be processed now.
-						break
+						break harvestLoop
 					}
 					pm.receiverChan <- incoming.bytesArray[0]
 					// remove first element
 					incoming.bytesArray = incoming.bytesArray[1:]
 				}
 				if harvestCount == 0 && len(incoming.bytesArray) == 0 {
-					break
+					break harvestLoop
 				}
 			}
 		}
