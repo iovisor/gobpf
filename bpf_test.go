@@ -47,7 +47,7 @@ func TestModuleLoadELF(t *testing.T) {
 	if b == nil {
 		t.Fatal("prog is nil")
 	}
-	err := b.Load()
+	err := b.Load(nil)
 	if err != nil {
 		t.Fatal(err)
 	}

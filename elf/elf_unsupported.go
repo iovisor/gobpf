@@ -6,12 +6,13 @@ import (
 	"fmt"
 )
 
-func (b *Module) Load() error {
-	return fmt.Errorf("not supported")
-}
-
 // not supported; dummy struct
 type BPFKProbePerf struct{}
+type SectionParams struct{}
+
+func (b *Module) Load(parameters map[string]SectionParams) error {
+	return fmt.Errorf("not supported")
+}
 
 func NewBpfPerfEvent(fileName string) *BPFKProbePerf {
 	// not supported

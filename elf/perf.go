@@ -106,6 +106,7 @@ import "C"
 type PerfMap struct {
 	name         string
 	program      *Module
+	pageCount    int
 	receiverChan chan []byte
 	lostChan     chan uint64
 	pollStop     chan bool
@@ -120,7 +121,7 @@ type PerfEventSample struct {
 }
 
 func InitPerfMap(b *Module, mapName string, receiverChan chan []byte, lostChan chan uint64) (*PerfMap, error) {
-	_, ok := b.maps[mapName]
+	m, ok := b.maps[mapName]
 	if !ok {
 		return nil, fmt.Errorf("no map with name %s", mapName)
 	}
@@ -128,6 +129,7 @@ func InitPerfMap(b *Module, mapName string, receiverChan chan []byte, lostChan c
 	return &PerfMap{
 		name:         mapName,
 		program:      b,
+		pageCount:    m.pageCount,
 		receiverChan: receiverChan,
 		lostChan:     lostChan,
 		pollStop:     make(chan bool),
@@ -159,7 +161,6 @@ func (pm *PerfMap) PollStart() {
 	go func() {
 		cpuCount := len(m.pmuFDs)
 		pageSize := os.Getpagesize()
-		pageCount := 8
 		state := C.struct_read_state{}
 
 		for {
@@ -180,7 +181,7 @@ func (pm *PerfMap) PollStart() {
 						var sample *PerfEventSample
 						var lost *PerfEventLost
 
-						ok := C.perf_event_read(C.int(pageCount), C.int(pageSize),
+						ok := C.perf_event_read(C.int(pm.pageCount), C.int(pageSize),
 							unsafe.Pointer(&state), unsafe.Pointer(m.headers[cpu]),
 							unsafe.Pointer(&sample), unsafe.Pointer(&lost))
 
