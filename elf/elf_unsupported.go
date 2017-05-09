@@ -22,7 +22,7 @@ func (b *BPFKProbePerf) Load() error {
 	return fmt.Errorf("not supported")
 }
 
-func (b *BPFKProbePerf) PollStart(mapName string, receiverChan chan []byte) {
+func (b *BPFKProbePerf) PollStart(mapName string, receiverChan chan []byte, lostChan chan uint64) {
 	// not supported
 	return
 }
