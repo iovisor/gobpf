@@ -5,6 +5,8 @@
 
 #define SEC(NAME) __attribute__((section(NAME), used))
 
+#define BUF_SIZE_MAP_NS 256
+
 enum bpf_map_type {
 	BPF_MAP_TYPE_UNSPEC,
 	BPF_MAP_TYPE_HASH,
@@ -23,6 +25,8 @@ struct bpf_map_def {
 	unsigned int value_size;
 	unsigned int max_entries;
 	unsigned int map_flags;
+	unsigned int pinning;
+	char namespace[BUF_SIZE_MAP_NS];
 };
 
 struct pt_regs{};

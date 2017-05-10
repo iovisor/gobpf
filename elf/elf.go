@@ -26,13 +26,18 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 	"strings"
 	"syscall"
 	"unsafe"
+
+	"github.com/iovisor/gobpf/bpffs"
 )
 
 /*
+#define _GNU_SOURCE
 #include <sys/types.h>
+#include <sys/stat.h>
 #include <errno.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -51,17 +56,24 @@ import (
 // from https://github.com/safchain/goebpf
 // Apache License, Version 2.0
 
+#define BUF_SIZE_MAP_NS 256
+
 typedef struct bpf_map_def {
   unsigned int type;
   unsigned int key_size;
   unsigned int value_size;
   unsigned int max_entries;
+  unsigned int map_flags;
+  unsigned int pinning;
+  char namespace[BUF_SIZE_MAP_NS];
 } bpf_map_def;
 
 typedef struct bpf_map {
 	int         fd;
 	bpf_map_def def;
 } bpf_map;
+
+extern int bpf_pin_object(int fd, const char *pathname);
 
 __u64 ptr_to_u64(void *ptr)
 {
@@ -113,9 +125,25 @@ static int bpf_create_map(enum bpf_map_type map_type, int key_size,
 	return ret;
 }
 
-static bpf_map *bpf_load_map(bpf_map_def *map_def)
+void create_bpf_obj_get(const char *pathname, void *attr)
+{
+	union bpf_attr *ptr_bpf_attr;
+	ptr_bpf_attr = (union bpf_attr *)attr;
+	ptr_bpf_attr->pathname = ptr_to_u64((void *) pathname);
+}
+
+int get_pinned_obj_fd(const char *path)
+{
+	union bpf_attr attr = {};
+	create_bpf_obj_get(path, &attr);
+	return syscall(__NR_bpf, BPF_OBJ_GET, &attr, sizeof(attr));
+}
+
+static bpf_map *bpf_load_map(bpf_map_def *map_def, const char *path)
 {
 	bpf_map *map;
+	struct stat st;
+	int ret, do_pin = 0;
 
 	map = calloc(1, sizeof(bpf_map));
 	if (map == NULL)
@@ -123,14 +151,38 @@ static bpf_map *bpf_load_map(bpf_map_def *map_def)
 
 	memcpy(&map->def, map_def, sizeof(bpf_map_def));
 
+	switch (map_def->pinning) {
+	case 1: // PIN_OBJECT_NS
+		// TODO to be implemented
+		return 0;
+	case 2: // PIN_GLOBAL_NS
+		if (stat(path, &st) == 0) {
+			ret = get_pinned_obj_fd(path);
+			if (ret < 0) {
+				return 0;
+			}
+			map->fd = ret;
+			return map;
+		}
+		do_pin = 1;
+	}
+
 	map->fd = bpf_create_map(map_def->type,
 		map_def->key_size,
 		map_def->value_size,
 		map_def->max_entries
 	);
 
-	if (map->fd < 0)
+	if (map->fd < 0) {
 		return 0;
+	}
+
+	if (do_pin) {
+		ret = bpf_pin_object(map->fd, path);
+		if (ret < 0) {
+			return 0;
+		}
+	}
 
 	return map;
 }
@@ -243,6 +295,19 @@ func elfReadVersion(file *elf.File) (uint32, error) {
 	return 0, nil
 }
 
+func prepareBPFFS(namespace, name string) (string, error) {
+	err := bpffs.Mount()
+	if err != nil {
+		return "", err
+	}
+	mapPath := filepath.Join(BPFFSPath, namespace, BPFDirGlobals, name)
+	err = os.MkdirAll(filepath.Dir(mapPath), syscall.S_IRWXU)
+	if err != nil {
+		return "", fmt.Errorf("error creating map directory %q: %v", filepath.Dir(mapPath), err)
+	}
+	return mapPath, nil
+}
+
 func elfReadMaps(file *elf.File) (map[string]*Map, error) {
 	maps := make(map[string]*Map)
 	for sectionIdx, section := range file.Sections {
@@ -257,7 +322,21 @@ func elfReadMaps(file *elf.File) (map[string]*Map, error) {
 			mapCount := len(data) / C.sizeof_struct_bpf_map_def
 			for i := 0; i < mapCount; i++ {
 				pos := i * C.sizeof_struct_bpf_map_def
-				cm, err := C.bpf_load_map((*C.bpf_map_def)(unsafe.Pointer(&data[pos])))
+				mapDef := (*C.bpf_map_def)(unsafe.Pointer(&data[pos]))
+
+				var mapPathC *C.char
+				if mapDef.pinning > 0 {
+					mapPath, err := prepareBPFFS(C.GoString(&mapDef.namespace[0]), name)
+					if err != nil {
+						return nil, fmt.Errorf("error preparing bpf fs: %v", err)
+					}
+					mapPathC = C.CString(mapPath)
+					defer C.free(unsafe.Pointer(mapPathC))
+				} else {
+					mapPathC = nil
+				}
+
+				cm, err := C.bpf_load_map(mapDef, mapPathC)
 				if cm == nil {
 					return nil, fmt.Errorf("error while loading map %q: %v", section.Name, err)
 				}
@@ -641,4 +720,8 @@ func (b *Module) IterMaps() <-chan *Map {
 
 func (b *Module) Map(name string) *Map {
 	return b.maps[name]
+}
+
+func (m *Map) Fd() int {
+	return int(m.m.fd)
 }
