@@ -47,6 +47,7 @@ type TraceEvent struct {
 	CPU       string
 	Flags     string
 	Timestamp string
+	Function  string
 	Message   string
 }
 
@@ -64,11 +65,11 @@ func New() (*TracePipe, error) {
 
 // A line from trace_pipe looks like (leading spaces included):
 // `        chromium-15581 [000] d... 92783.722567: : Hello, World!`
-var traceLineRegexp = regexp.MustCompile(`(.{16})-(\d+) +\[(\d{3})\] (.{4}) +(\d+\.\d+)\: \: (.*)`)
+var traceLineRegexp = regexp.MustCompile(`(.{16})-(\d+) +\[(\d{3})\] (.{4}) +(\d+\.\d+)\: (.*)\: (.*)`)
 
 func parseTraceLine(raw string) (*TraceEvent, error) {
 	fields := traceLineRegexp.FindStringSubmatch(raw)
-	if len(fields) != 7 {
+	if len(fields) != 8 {
 		return nil, fmt.Errorf("received unexpected input %q", raw)
 	}
 	return &TraceEvent{
@@ -78,7 +79,8 @@ func parseTraceLine(raw string) (*TraceEvent, error) {
 		CPU:       fields[3],
 		Flags:     fields[4],
 		Timestamp: fields[5],
-		Message:   fields[6],
+		Function:  fields[6],
+		Message:   fields[7],
 	}, nil
 }
 
