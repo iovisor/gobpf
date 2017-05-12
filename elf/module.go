@@ -186,6 +186,22 @@ func writeKprobeEvent(probeType, eventName, funcName, maxactiveStr string) (int,
 	return kprobeId, nil
 }
 
+func perfEventOpenTracepoint(id int, progFd int) (int, error) {
+	efd, err := C.perf_event_open_tracepoint(C.int(id), -1 /* pid */, 0 /* cpu */, -1 /* group_fd */, C.PERF_FLAG_FD_CLOEXEC)
+	if efd < 0 {
+		return -1, fmt.Errorf("perf_event_open error: %v", err)
+	}
+
+	if _, _, err := syscall.Syscall(syscall.SYS_IOCTL, uintptr(efd), C.PERF_EVENT_IOC_ENABLE, 0); err != 0 {
+		return -1, fmt.Errorf("error enabling perf event: %v", err)
+	}
+
+	if _, _, err := syscall.Syscall(syscall.SYS_IOCTL, uintptr(efd), C.PERF_EVENT_IOC_SET_BPF, uintptr(progFd)); err != 0 {
+		return -1, fmt.Errorf("error enabling perf event: %v", err)
+	}
+	return int(efd), nil
+}
+
 // EnableKprobe enables a kprobe/kretprobe identified by secName.
 // For kretprobes, you can configure the maximum number of instances
 // of the function that can be probed simultaneously with maxactive.
@@ -222,22 +238,8 @@ func (b *Module) EnableKprobe(secName string, maxactive int) error {
 		return err
 	}
 
-	efd := C.perf_event_open_tracepoint(C.int(kprobeId), -1 /* pid */, 0 /* cpu */, -1 /* group_fd */, C.PERF_FLAG_FD_CLOEXEC)
-	if efd < 0 {
-		return fmt.Errorf("perf_event_open for kprobe error")
-	}
-
-	_, _, err2 := syscall.Syscall(syscall.SYS_IOCTL, uintptr(efd), C.PERF_EVENT_IOC_ENABLE, 0)
-	if err2 != 0 {
-		return fmt.Errorf("error enabling perf event: %v", err2)
-	}
-
-	_, _, err2 = syscall.Syscall(syscall.SYS_IOCTL, uintptr(efd), C.PERF_EVENT_IOC_SET_BPF, uintptr(progFd))
-	if err2 != 0 {
-		return fmt.Errorf("error enabling perf event: %v", err2)
-	}
-	probe.efd = int(efd)
-	return nil
+	probe.efd, err = perfEventOpenTracepoint(kprobeId, progFd)
+	return err
 }
 
 // IterKprobes returns a channel that emits the kprobes that included in the
