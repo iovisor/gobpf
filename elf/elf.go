@@ -255,8 +255,8 @@ static int perf_event_open_map(int pid, int cpu, int group_fd, unsigned long fla
 	attr.size = sizeof(struct perf_event_attr);
 	attr.config = 10; // PERF_COUNT_SW_BPF_OUTPUT
 
-       return syscall(__NR_perf_event_open, &attr, pid, cpu,
-                      group_fd, flags);
+	return syscall(__NR_perf_event_open, &attr, pid, cpu,
+		       group_fd, flags);
 }
 */
 import "C"
