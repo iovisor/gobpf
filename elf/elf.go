@@ -310,52 +310,48 @@ func prepareBPFFS(namespace, name string) (string, error) {
 
 func elfReadMaps(file *elf.File) (map[string]*Map, error) {
 	maps := make(map[string]*Map)
-	for sectionIdx, section := range file.Sections {
-		if strings.HasPrefix(section.Name, "maps/") {
-			data, err := section.Data()
-			if err != nil {
-				return nil, err
-			}
-
-			name := strings.TrimPrefix(section.Name, "maps/")
-
-			mapCount := len(data) / C.sizeof_struct_bpf_map_def
-			for i := 0; i < mapCount; i++ {
-				pos := i * C.sizeof_struct_bpf_map_def
-				mapDef := (*C.bpf_map_def)(unsafe.Pointer(&data[pos]))
-
-				var mapPathC *C.char
-				if mapDef.pinning > 0 {
-					mapPath, err := prepareBPFFS(C.GoString(&mapDef.namespace[0]), name)
-					if err != nil {
-						return nil, fmt.Errorf("error preparing bpf fs: %v", err)
-					}
-					mapPathC = C.CString(mapPath)
-					defer C.free(unsafe.Pointer(mapPathC))
-				} else {
-					mapPathC = nil
-				}
-
-				cm, err := C.bpf_load_map(mapDef, mapPathC)
-				if cm == nil {
-					return nil, fmt.Errorf("error while loading map %q: %v", section.Name, err)
-				}
-
-				m := &Map{
-					Name:       name,
-					SectionIdx: sectionIdx,
-					Idx:        i,
-					m:          cm,
-				}
-
-				if oldMap, ok := maps[name]; ok {
-					return nil, fmt.Errorf("duplicate map: %q (section %q) and %q (section %q)",
-						oldMap.Name, file.Sections[oldMap.SectionIdx].Name,
-						name, section.Name)
-				}
-				maps[name] = m
-			}
+	for _, section := range file.Sections {
+		if !strings.HasPrefix(section.Name, "maps/") {
+			continue
 		}
+
+		data, err := section.Data()
+		if err != nil {
+			return nil, err
+		}
+		if len(data) != C.sizeof_struct_bpf_map_def {
+			return nil, fmt.Errorf("only one map with size %d allowed per section", C.sizeof_struct_bpf_map_def)
+		}
+
+		name := strings.TrimPrefix(section.Name, "maps/")
+
+		mapDef := (*C.bpf_map_def)(unsafe.Pointer(&data[0]))
+
+		var mapPathC *C.char
+		if mapDef.pinning > 0 {
+			mapPath, err := prepareBPFFS(C.GoString(&mapDef.namespace[0]), name)
+			if err != nil {
+				return nil, fmt.Errorf("error preparing bpf fs: %v", err)
+			}
+			mapPathC = C.CString(mapPath)
+			defer C.free(unsafe.Pointer(mapPathC))
+		} else {
+			mapPathC = nil
+		}
+
+		cm, err := C.bpf_load_map(mapDef, mapPathC)
+		if cm == nil {
+			return nil, fmt.Errorf("error while loading map %q: %v", section.Name, err)
+		}
+
+		if oldMap, ok := maps[name]; ok {
+			return nil, fmt.Errorf("duplicate map: %q and %q", oldMap.Name, name)
+		}
+		maps[name] = &Map{
+			Name: name,
+			m:    cm,
+		}
+
 	}
 	return maps, nil
 }
@@ -696,10 +692,8 @@ func (b *Module) initializePerfMaps(parameters map[string]SectionParams) error {
 // Map represents a eBPF map. An eBPF map has to be declared in the
 // C file.
 type Map struct {
-	Name       string
-	SectionIdx int
-	Idx        int
-	m          *C.bpf_map
+	Name string
+	m    *C.bpf_map
 
 	// only for perf maps
 	pmuFDs    []C.int
