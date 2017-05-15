@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package bpf
+package tracepipe
 
 import (
 	"bufio"
@@ -50,7 +50,7 @@ type TraceEvent struct {
 	Message   string
 }
 
-func NewTracePipe() (*TracePipe, error) {
+func New() (*TracePipe, error) {
 	f, err := os.Open(tracePipeFile)
 	if err != nil {
 		return nil, err
