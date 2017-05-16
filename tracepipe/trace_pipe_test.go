@@ -1,4 +1,4 @@
-package bpf
+package tracepipe
 
 import (
 	"testing"

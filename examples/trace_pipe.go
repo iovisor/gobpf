@@ -18,11 +18,11 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/iovisor/gobpf"
+	"github.com/iovisor/gobpf/tracepipe"
 )
 
 func main() {
-	tp, err := bpf.NewTracePipe()
+	tp, err := tracepipe.New()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "%s\n", err)
 		os.Exit(1)

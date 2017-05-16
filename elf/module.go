@@ -262,3 +262,7 @@ func (b *Module) AttachCgroupProgram(cgroupProg *CgroupProgram, cgroupPath strin
 
 	return nil
 }
+
+func (kp *Kprobe) Fd() int {
+	return kp.fd
+}
