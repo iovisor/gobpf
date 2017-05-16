@@ -308,6 +308,17 @@ func prepareBPFFS(namespace, name string) (string, error) {
 	return mapPath, nil
 }
 
+func validMapNamespace(namespaceRaw *C.char) (string, error) {
+	namespace := C.GoStringN(namespaceRaw, C.int(C.strnlen(namespaceRaw, C.BUF_SIZE_MAP_NS)))
+	if namespace == "" || namespace == "." || namespace == ".." {
+		return "", fmt.Errorf("namespace must not be %q", namespace)
+	}
+	if strings.Contains(namespace, "/") {
+		return "", fmt.Errorf("no '/' allowed in namespace")
+	}
+	return namespace, nil
+}
+
 func elfReadMaps(file *elf.File) (map[string]*Map, error) {
 	maps := make(map[string]*Map)
 	for _, section := range file.Sections {
@@ -329,7 +340,11 @@ func elfReadMaps(file *elf.File) (map[string]*Map, error) {
 
 		var mapPathC *C.char
 		if mapDef.pinning > 0 {
-			mapPath, err := prepareBPFFS(C.GoString(&mapDef.namespace[0]), name)
+			namespace, err := validMapNamespace(&mapDef.namespace[0])
+			if err != nil {
+				return nil, err
+			}
+			mapPath, err := prepareBPFFS(namespace, name)
 			if err != nil {
 				return nil, fmt.Errorf("error preparing bpf fs: %v", err)
 			}
