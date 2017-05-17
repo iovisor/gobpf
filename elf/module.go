@@ -276,10 +276,18 @@ func disableKprobe(eventName string) error {
 		return fmt.Errorf("cannot open kprobe_events: %v", err)
 	}
 	defer f.Close()
-
 	cmd := fmt.Sprintf("-:%s\n", eventName)
 	if _, err = f.WriteString(cmd); err != nil {
-		return fmt.Errorf("cannot write %q to kprobe_events: %v", cmd, err)
+		pathErr, ok := err.(*os.PathError)
+		if ok && pathErr.Err == syscall.ENOENT {
+			// This can happen when for example two modules
+			// use the same elf object and both call `Close()`.
+			// The second will encounter the error as the
+			// probe already has been cleared by the first.
+			return nil
+		} else {
+			return fmt.Errorf("cannot write %q to kprobe_events: %v", cmd, err)
+		}
 	}
 	return nil
 }
