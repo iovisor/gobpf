@@ -173,6 +173,11 @@ func (pm *PerfMap) PollStart() {
 
 		harvestLoop:
 			for {
+				select {
+				case <-pm.pollStop:
+					return
+				}
+
 				var harvestCount C.int
 				beforeHarvest := nowNanoseconds()
 				for cpu := 0; cpu < cpuCount; cpu++ {
