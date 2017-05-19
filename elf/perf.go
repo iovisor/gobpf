@@ -176,6 +176,7 @@ func (pm *PerfMap) PollStart() {
 				select {
 				case <-pm.pollStop:
 					return
+				default:
 				}
 
 				var harvestCount C.int
