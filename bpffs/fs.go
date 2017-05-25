@@ -8,7 +8,7 @@ import (
 const (
 	BPFFSPath = "/sys/fs/bpf"
 	// https://github.com/coreutils/coreutils/blob/v8.27/src/stat.c#L275
-	FsMagicBPFFS = 0xCAFE4A11
+	FsMagicBPFFS = int64(0xCAFE4A11)
 )
 
 // IsMounted checks if the BPF fs is mounted already
