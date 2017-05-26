@@ -513,6 +513,7 @@ func (b *Module) Load(parameters map[string]SectionParams) error {
 			isKretprobe := strings.HasPrefix(secName, "kretprobe/")
 			isCgroupSkb := strings.HasPrefix(secName, "cgroup/skb")
 			isCgroupSock := strings.HasPrefix(secName, "cgroup/sock")
+			isSocketFilter := strings.HasPrefix(secName, "socket")
 
 			var progType uint32
 			switch {
@@ -524,9 +525,11 @@ func (b *Module) Load(parameters map[string]SectionParams) error {
 				progType = uint32(C.BPF_PROG_TYPE_CGROUP_SKB)
 			case isCgroupSock:
 				progType = uint32(C.BPF_PROG_TYPE_CGROUP_SOCK)
+			case isSocketFilter:
+				progType = uint32(C.BPF_PROG_TYPE_SOCKET_FILTER)
 			}
 
-			if isKprobe || isKretprobe || isCgroupSkb || isCgroupSock {
+			if isKprobe || isKretprobe || isCgroupSkb || isCgroupSock || isSocketFilter {
 				rdata, err := rsection.Data()
 				if err != nil {
 					return err
@@ -568,6 +571,12 @@ func (b *Module) Load(parameters map[string]SectionParams) error {
 						insns: insns,
 						fd:    int(progFd),
 					}
+				case isSocketFilter:
+					b.socketFilters[secName] = &SocketFilter{
+						Name:  secName,
+						insns: insns,
+						fd:    int(progFd),
+					}
 				}
 			}
 		}
@@ -584,6 +593,7 @@ func (b *Module) Load(parameters map[string]SectionParams) error {
 		isKretprobe := strings.HasPrefix(secName, "kretprobe/")
 		isCgroupSkb := strings.HasPrefix(secName, "cgroup/skb")
 		isCgroupSock := strings.HasPrefix(secName, "cgroup/sock")
+		isSocketFilter := strings.HasPrefix(secName, "socket")
 
 		var progType uint32
 		switch {
@@ -595,9 +605,11 @@ func (b *Module) Load(parameters map[string]SectionParams) error {
 			progType = uint32(C.BPF_PROG_TYPE_CGROUP_SKB)
 		case isCgroupSock:
 			progType = uint32(C.BPF_PROG_TYPE_CGROUP_SOCK)
+		case isSocketFilter:
+			progType = uint32(C.BPF_PROG_TYPE_SOCKET_FILTER)
 		}
 
-		if isKprobe || isKretprobe || isCgroupSkb || isCgroupSock {
+		if isKprobe || isKretprobe || isCgroupSkb || isCgroupSock || isSocketFilter {
 			data, err := section.Data()
 			if err != nil {
 				return err
@@ -630,6 +642,12 @@ func (b *Module) Load(parameters map[string]SectionParams) error {
 				fallthrough
 			case isCgroupSock:
 				b.cgroupPrograms[secName] = &CgroupProgram{
+					Name:  secName,
+					insns: insns,
+					fd:    int(progFd),
+				}
+			case isSocketFilter:
+				b.socketFilters[secName] = &SocketFilter{
 					Name:  secName,
 					insns: insns,
 					fd:    int(progFd),

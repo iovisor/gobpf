@@ -39,6 +39,7 @@ import (
 #include "include/bpf.h"
 #include <linux/perf_event.h>
 #include <linux/unistd.h>
+#include <sys/socket.h>
 
 static int perf_event_open_tracepoint(int tracepoint_id, int pid, int cpu,
                            int group_fd, unsigned long flags)
@@ -77,6 +78,16 @@ int bpf_prog_detach(int prog_fd, int target_fd, enum bpf_attach_type type)
 
 	return syscall(__NR_bpf, BPF_PROG_DETACH, &attr, sizeof(attr));
 }
+
+int bpf_attach_socket(int sock, int fd)
+{
+	return setsockopt(sock, SOL_SOCKET, SO_ATTACH_BPF, &fd, sizeof(fd));
+}
+
+int bpf_detach_socket(int sock)
+{
+	return setsockopt(sock, SOL_SOCKET, SO_DETACH_BPF, NULL, 0);
+}
 */
 import "C"
 
@@ -89,6 +100,7 @@ type Module struct {
 	maps           map[string]*Map
 	probes         map[string]*Kprobe
 	cgroupPrograms map[string]*CgroupProgram
+	socketFilters  map[string]*SocketFilter
 }
 
 // Kprobe represents a kprobe or kretprobe and has to be declared
@@ -115,11 +127,19 @@ type CgroupProgram struct {
 	fd    int
 }
 
+// SocketFilter represents a socket filter
+type SocketFilter struct {
+	Name  string
+	insns *C.struct_bpf_insn
+	fd    int
+}
+
 func NewModule(fileName string) *Module {
 	return &Module{
 		fileName:       fileName,
 		probes:         make(map[string]*Kprobe),
 		cgroupPrograms: make(map[string]*CgroupProgram),
+		socketFilters:  make(map[string]*SocketFilter),
 		log:            make([]byte, 65536),
 	}
 }
@@ -293,6 +313,43 @@ func DetachCgroupProgram(cgroupProg *CgroupProgram, cgroupPath string, attachTyp
 	return nil
 }
 
+func (b *Module) IterSocketFilter() <-chan *SocketFilter {
+	ch := make(chan *SocketFilter)
+	go func() {
+		for name := range b.socketFilters {
+			ch <- b.socketFilters[name]
+		}
+		close(ch)
+	}()
+	return ch
+}
+
+func (b *Module) SocketFilter(name string) *SocketFilter {
+	return b.socketFilters[name]
+}
+
+func AttachSocketFilter(socketFilter *SocketFilter, sockFd int) error {
+	ret, err := C.bpf_attach_socket(C.int(sockFd), C.int(socketFilter.fd))
+	if ret != 0 {
+		return fmt.Errorf("error attaching BPF socket filter: %v", err)
+	}
+
+	return nil
+}
+
+func (sf *SocketFilter) Fd() int {
+	return sf.fd
+}
+
+func DetachSocketFilter(sockFd int) error {
+	ret, err := C.bpf_detach_socket(C.int(sockFd))
+	if ret != 0 {
+		return fmt.Errorf("error detaching BPF socket filter: %v", err)
+	}
+
+	return nil
+}
+
 func (b *Module) Kprobe(name string) *Kprobe {
 	return b.probes[name]
 }
@@ -359,6 +416,15 @@ func (b *Module) closeCgroupPrograms() error {
 	return nil
 }
 
+func (b *Module) closeSocketFilters() error {
+	for _, filter := range b.socketFilters {
+		if err := syscall.Close(filter.fd); err != nil {
+			return fmt.Errorf("error closing socket filter fd: %v", err)
+		}
+	}
+	return nil
+}
+
 func unpinMap(m *Map) error {
 	if m.m.def.pinning == 0 {
 		return nil
@@ -386,7 +452,16 @@ func (b *Module) closeMaps() error {
 	return nil
 }
 
-// Close takes care of terminating all underlying BPF programs and structures
+// Close takes care of terminating all underlying BPF programs and structures.
+// That is:
+//
+// * Closing map file descriptors and unpinning them where applicable
+// * Detaching BPF programs from kprobes and closing their file descriptors
+// * Closing cgroup-bpf file descriptors
+// * Closing socket filter file descriptors
+//
+// It doesn't detach BPF programs from cgroups or sockets because they're
+// considered resources the user controls.
 func (b *Module) Close() error {
 	if err := b.closeMaps(); err != nil {
 		return err
@@ -395,6 +470,9 @@ func (b *Module) Close() error {
 		return err
 	}
 	if err := b.closeCgroupPrograms(); err != nil {
+		return err
+	}
+	if err := b.closeSocketFilters(); err != nil {
 		return err
 	}
 	return nil
