@@ -12,6 +12,7 @@ var FsMagicBPFFS int32
 
 func init() {
 	// https://github.com/coreutils/coreutils/blob/v8.27/src/stat.c#L275
+	// https://github.com/torvalds/linux/blob/v4.8/include/uapi/linux/magic.h#L80
 	magic := uint32(0xCAFE4A11)
 	// 0xCAFE4A11 overflows an int32, which is what's expected by Statfs_t.Type in 32bit platforms.
 	// To avoid conditional compilation for all 32bit/64bit platforms, we use an unsafe cast
