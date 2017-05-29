@@ -63,8 +63,19 @@ int bpf_prog_attach(int prog_fd, int target_fd, enum bpf_attach_type type)
 	attr.attach_bpf_fd = prog_fd;
 	attr.attach_type   = type;
 
-	// BPF_PROG_ATTACH = 8
-	return syscall(__NR_bpf, 8, &attr, sizeof(attr));
+	return syscall(__NR_bpf, BPF_PROG_ATTACH, &attr, sizeof(attr));
+}
+
+int bpf_prog_detach(int prog_fd, int target_fd, enum bpf_attach_type type)
+{
+	union bpf_attr attr;
+
+	bzero(&attr, sizeof(attr));
+	attr.target_fd	   = target_fd;
+	attr.attach_bpf_fd = prog_fd;
+	attr.attach_type   = type;
+
+	return syscall(__NR_bpf, BPF_PROG_DETACH, &attr, sizeof(attr));
 }
 */
 import "C"
@@ -248,7 +259,7 @@ func (b *Module) CgroupProgram(name string) *CgroupProgram {
 	return b.cgroupPrograms[name]
 }
 
-func (b *Module) AttachCgroupProgram(cgroupProg *CgroupProgram, cgroupPath string, attachType AttachType) error {
+func AttachCgroupProgram(cgroupProg *CgroupProgram, cgroupPath string, attachType AttachType) error {
 	f, err := os.Open(cgroupPath)
 	if err != nil {
 		return fmt.Errorf("error opening cgroup %q: %v", cgroupPath, err)
@@ -260,6 +271,23 @@ func (b *Module) AttachCgroupProgram(cgroupProg *CgroupProgram, cgroupPath strin
 	ret, err := C.bpf_prog_attach(progFd, cgroupFd, uint32(attachType))
 	if ret < 0 {
 		return fmt.Errorf("failed to attach prog to cgroup %q: %v", cgroupPath, err)
+	}
+
+	return nil
+}
+
+func DetachCgroupProgram(cgroupProg *CgroupProgram, cgroupPath string, attachType AttachType) error {
+	f, err := os.Open(cgroupPath)
+	if err != nil {
+		return fmt.Errorf("error opening cgroup %q: %v", cgroupPath, err)
+	}
+	defer f.Close()
+
+	progFd := C.int(cgroupProg.fd)
+	cgroupFd := C.int(f.Fd())
+	ret, err := C.bpf_prog_detach(progFd, cgroupFd, uint32(attachType))
+	if ret < 0 {
+		return fmt.Errorf("failed to detach prog from cgroup %q: %v", cgroupPath, err)
 	}
 
 	return nil
