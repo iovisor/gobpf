@@ -25,8 +25,15 @@ Install [libbcc](https://github.com/iovisor/bcc/blob/master/INSTALL.md) (either 
 #### Building ELF object files
 
 To build ELF object files for usage with the elf package, you must use distinct
-sections (`SEC("...")`). Currently, `kprobe/...`, `cgroup/skb`, `cgroup/sock`
-and `maps/...` are supported.
+sections (`SEC("...")`). Currently supported are:
+
+* `kprobe/...`
+* `cgroup/skb`
+* `cgroup/sock`
+* `maps/...`
+
+Map definitions must correspond to `bpf_map_def` from [elf.go](https://github.com/iovisor/gobpf/blob/master/elf/elf.go)
+Otherwise you will encounter an error like `only one map with size 280 bytes allowed per section (check bpf_map_def)`.
 
 See `tests/dummy.c` for a minimal dummy and https://github.com/weaveworks/tcptracer-bpf
 for a real world example.
