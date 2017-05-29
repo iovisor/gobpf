@@ -35,6 +35,10 @@ sections (`SEC("...")`). Currently supported are:
 Map definitions must correspond to `bpf_map_def` from [elf.go](https://github.com/iovisor/gobpf/blob/master/elf/elf.go)
 Otherwise you will encounter an error like `only one map with size 280 bytes allowed per section (check bpf_map_def)`.
 
+The [Cilium](https://github.com/cilium/cilium) BPF docs contain helpful info
+for using clang/LLVM to compile programs into elf object files:
+https://cilium.readthedocs.io/en/latest/bpf/#llvm
+
 See `tests/dummy.c` for a minimal dummy and https://github.com/weaveworks/tcptracer-bpf
 for a real world example.
 
