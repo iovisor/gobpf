@@ -474,7 +474,7 @@ func (b *Module) Load(parameters map[string]SectionParams) error {
 		return err
 	}
 	if version == useCurrentKernelVersion {
-		version, err = currentVersion()
+		version, err = CurrentKernelVersion()
 		if err != nil {
 			return err
 		}

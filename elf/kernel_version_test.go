@@ -41,7 +41,7 @@ var testData = []struct {
 
 func TestKernelVersionFromReleaseString(t *testing.T) {
 	for _, test := range testData {
-		version, err := kernelVersionFromReleaseString(test.releaseString)
+		version, err := KernelVersionFromReleaseString(test.releaseString)
 		if err != nil && test.succeed {
 			t.Errorf("expected %q to succeed: %s", test.releaseString, err)
 		} else if err == nil && !test.succeed {
