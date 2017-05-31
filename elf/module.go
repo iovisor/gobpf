@@ -146,9 +146,11 @@ func NewModule(fileName string) *Module {
 
 func NewModuleFromReader(fileReader io.ReaderAt) *Module {
 	return &Module{
-		fileReader: fileReader,
-		probes:     make(map[string]*Kprobe),
-		log:        make([]byte, 65536),
+		fileReader:     fileReader,
+		probes:         make(map[string]*Kprobe),
+		cgroupPrograms: make(map[string]*CgroupProgram),
+		socketFilters:  make(map[string]*SocketFilter),
+		log:            make([]byte, 65536),
 	}
 }
 
