@@ -474,7 +474,7 @@ func (b *Module) Load(parameters map[string]SectionParams) error {
 		return err
 	}
 	if version == useCurrentKernelVersion {
-		version, err = currentVersion()
+		version, err = CurrentKernelVersion()
 		if err != nil {
 			return err
 		}
@@ -546,12 +546,12 @@ func (b *Module) Load(parameters map[string]SectionParams) error {
 
 				insns := (*C.struct_bpf_insn)(unsafe.Pointer(&rdata[0]))
 
-				progFd := C.bpf_prog_load(progType,
+				progFd, err := C.bpf_prog_load(progType,
 					insns, C.int(rsection.Size),
 					(*C.char)(lp), C.int(version),
 					(*C.char)(unsafe.Pointer(&b.log[0])), C.int(len(b.log)))
 				if progFd < 0 {
-					return fmt.Errorf("error while loading %q:\n%s", secName, b.log)
+					return fmt.Errorf("error while loading %q (%v):\n%s", secName, err, b.log)
 				}
 
 				switch {
@@ -621,12 +621,12 @@ func (b *Module) Load(parameters map[string]SectionParams) error {
 
 			insns := (*C.struct_bpf_insn)(unsafe.Pointer(&data[0]))
 
-			progFd := C.bpf_prog_load(progType,
+			progFd, err := C.bpf_prog_load(progType,
 				insns, C.int(section.Size),
 				(*C.char)(lp), C.int(version),
 				(*C.char)(unsafe.Pointer(&b.log[0])), C.int(len(b.log)))
 			if progFd < 0 {
-				return fmt.Errorf("error while loading %q:\n%s", section.Name, b.log)
+				return fmt.Errorf("error while loading %q (%v):\n%s", section.Name, err, b.log)
 			}
 
 			switch {

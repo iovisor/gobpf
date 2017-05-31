@@ -2,10 +2,10 @@
  * Compiled with:
  * clang -O2 -emit-llvm -c dummy.c -o - | llc -march=bpf -filetype=obj -o dummy.o
  */
-
 #define SEC(NAME) __attribute__((section(NAME), used))
 
 #define BUF_SIZE_MAP_NS 256
+#define PERF_MAX_STACK_DEPTH 127
 
 enum bpf_map_type {
 	BPF_MAP_TYPE_UNSPEC,
@@ -30,17 +30,97 @@ struct bpf_map_def {
 };
 
 struct pt_regs{};
+struct __sk_buff{};
 
-struct bpf_map_def SEC("maps/dummy") dummy_map = {
+struct bpf_map_def SEC("maps/dummy_hash") dummy_hash = {
+	.type = BPF_MAP_TYPE_HASH,
+	.key_size = sizeof(int),
+	.value_size = sizeof(unsigned int),
+	.max_entries = 128,
+};
+
+struct bpf_map_def SEC("maps/dummy_array") dummy_array = {
+	.type = BPF_MAP_TYPE_ARRAY,
+	.key_size = sizeof(int),
+	.value_size = sizeof(unsigned int),
+	.max_entries = 128,
+};
+
+struct bpf_map_def SEC("maps/dummy_prog_array") dummy_prog_array = {
+	.type = BPF_MAP_TYPE_PROG_ARRAY,
+	.key_size = sizeof(int),
+	.value_size = sizeof(unsigned int),
+	.max_entries = 128,
+};
+
+struct bpf_map_def SEC("maps/dummy_perf") dummy_perf = {
 	.type = BPF_MAP_TYPE_PERF_EVENT_ARRAY,
 	.key_size = sizeof(int),
 	.value_size = sizeof(unsigned int),
 	.max_entries = 128,
 };
 
+#ifdef NEWER_THAN_46
+struct bpf_map_def SEC("maps/dummy_percpu_hash") dummy_percpu_hash = {
+	.type = BPF_MAP_TYPE_PERCPU_HASH,
+	.key_size = sizeof(int),
+	.value_size = sizeof(unsigned int),
+	.max_entries = 128,
+};
+
+struct bpf_map_def SEC("maps/dummy_percpu_array") dummy_percpu_array = {
+	.type = BPF_MAP_TYPE_PERCPU_ARRAY,
+	.key_size = sizeof(int),
+	.value_size = sizeof(unsigned int),
+	.max_entries = 128,
+};
+
+struct bpf_map_def SEC("maps/dummy_stack_trace") dummy_stack_trace = {
+	.type = BPF_MAP_TYPE_STACK_TRACE,
+	.key_size = sizeof(int),
+	.value_size = PERF_MAX_STACK_DEPTH * sizeof(unsigned long long),
+	.max_entries = 128,
+};
+#endif
+
+#ifdef NEWER_THAN_48
+struct bpf_map_def SEC("maps/dummy_cgroup_array") dummy_cgroup_array = {
+	.type = BPF_MAP_TYPE_CGROUP_ARRAY,
+	.key_size = sizeof(int),
+	.value_size = sizeof(unsigned int),
+	.max_entries = 128,
+};
+#endif
+
 
 SEC("kprobe/dummy")
 int kprobe__dummy(struct pt_regs *ctx)
+{
+	return 0;
+}
+
+SEC("kretprobe/dummy")
+int kretprobe__dummy(struct pt_regs *ctx)
+{
+	return 0;
+}
+
+#ifdef NEWER_THAN_410
+SEC("cgroup/skb")
+int cgroup_skb__dummy(struct __sk_buff *skb)
+{
+	return 0;
+}
+
+SEC("cgroup/sock")
+int cgroup_sock__dummy(struct __sk_buff *skb)
+{
+	return 0;
+}
+#endif
+
+SEC("socket/dummy")
+int socket__dummy(struct __sk_buff *skb)
 {
 	return 0;
 }
