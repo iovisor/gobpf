@@ -39,6 +39,7 @@ for kernel_version in "${kernel_versions[@]}"; do
     --stage1-name="kinvolk.io/aci/rkt/stage1-kvm:${rkt_version},kernelversion=${kernel_version}" \
     --volume=gobpf,kind=host,source="$PWD" \
     docker://schu/gobpf-ci \
+    --memory=1024M \
     --mount=volume=gobpf,target=/go/src/github.com/iovisor/gobpf \
     --environment=GOPATH=/go \
     --environment=C_INCLUDE_PATH="${kernel_api_header_dir}" \
