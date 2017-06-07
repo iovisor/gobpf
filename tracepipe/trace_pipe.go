@@ -65,7 +65,7 @@ func New() (*TracePipe, error) {
 
 // A line from trace_pipe looks like (leading spaces included):
 // `        chromium-15581 [000] d... 92783.722567: : Hello, World!`
-var traceLineRegexp = regexp.MustCompile(`(.{16})-(\d+) +\[(\d{3})\] (.{4}) +(\d+\.\d+)\: (.*)\: (.*)`)
+var traceLineRegexp = regexp.MustCompile(`(.{16})-(\d+) +\[(\d{3})\] (.{4}) +(\d+\.\d+)\: (.*?)\: (.*)`)
 
 func parseTraceLine(raw string) (*TraceEvent, error) {
 	fields := traceLineRegexp.FindStringSubmatch(raw)
