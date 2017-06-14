@@ -386,8 +386,11 @@ func disableKprobe(eventName string) error {
 func (b *Module) closeProbes() error {
 	var funcName string
 	for _, probe := range b.probes {
-		if err := syscall.Close(probe.efd); err != nil {
-			return fmt.Errorf("error closing perf event fd: %v", err)
+		if probe.efd != -1 {
+			if err := syscall.Close(probe.efd); err != nil {
+				return fmt.Errorf("error closing perf event fd: %v", err)
+			}
+			probe.efd = -1
 		}
 		if err := syscall.Close(probe.fd); err != nil {
 			return fmt.Errorf("error closing probe fd: %v", err)
