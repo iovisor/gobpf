@@ -20,7 +20,7 @@ import (
 	"sync"
 	"unsafe"
 
-	"github.com/iovisor/gobpf/cpuonline"
+	"github.com/iovisor/gobpf/pkg/cpuonline"
 )
 
 /*
