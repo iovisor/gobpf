@@ -31,7 +31,8 @@ import (
 	"syscall"
 	"unsafe"
 
-	"github.com/iovisor/gobpf/bpffs"
+	"github.com/iovisor/gobpf/pkg/bpffs"
+	"github.com/iovisor/gobpf/pkg/cpuonline"
 )
 
 /*
@@ -663,8 +664,6 @@ func (b *Module) Load(parameters map[string]SectionParams) error {
 
 func (b *Module) initializePerfMaps(parameters map[string]SectionParams) error {
 	for name, m := range b.maps {
-		var cpu C.int = 0
-
 		if m.m != nil && m.m.def._type != C.BPF_MAP_TYPE_PERF_EVENT_ARRAY {
 			continue
 		}
@@ -685,13 +684,16 @@ func (b *Module) initializePerfMaps(parameters map[string]SectionParams) error {
 			}
 		}
 
-		for {
-			pmuFD, err := C.perf_event_open_map(-1 /* pid */, cpu /* cpu */, -1 /* group_fd */, C.PERF_FLAG_FD_CLOEXEC)
+		cpus, err := cpuonline.Get()
+		if err != nil {
+			return fmt.Errorf("failed to determine online cpus: %v", err)
+		}
+
+		for _, cpu := range cpus {
+			cpuC := C.int(cpu)
+			pmuFD, err := C.perf_event_open_map(-1 /* pid */, cpuC /* cpu */, -1 /* group_fd */, C.PERF_FLAG_FD_CLOEXEC)
 			if pmuFD < 0 {
-				if cpu == 0 {
-					return fmt.Errorf("perf_event_open for map error: %v", err)
-				}
-				break
+				return fmt.Errorf("perf_event_open for map error: %v", err)
 			}
 
 			// mmap
@@ -709,15 +711,13 @@ func (b *Module) initializePerfMaps(parameters map[string]SectionParams) error {
 			}
 
 			// assign perf fd to map
-			ret, err := C.bpf_update_element(C.int(b.maps[name].m.fd), unsafe.Pointer(&cpu), unsafe.Pointer(&pmuFD), C.BPF_ANY)
+			ret, err := C.bpf_update_element(C.int(b.maps[name].m.fd), unsafe.Pointer(&cpuC), unsafe.Pointer(&pmuFD), C.BPF_ANY)
 			if ret != 0 {
-				return fmt.Errorf("cannot assign perf fd to map %q: %v (cpu %d)", name, err, cpu)
+				return fmt.Errorf("cannot assign perf fd to map %q: %v (cpu %d)", name, err, cpuC)
 			}
 
 			b.maps[name].pmuFDs = append(b.maps[name].pmuFDs, pmuFD)
 			b.maps[name].headers = append(b.maps[name].headers, (*C.struct_perf_event_mmap_page)(unsafe.Pointer(&base[0])))
-
-			cpu++
 		}
 	}
 
