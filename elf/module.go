@@ -439,9 +439,10 @@ func unpinMap(m *Map) error {
 	return syscall.Unlink(mapPath)
 }
 
-func (b *Module) closeMaps() error {
+func (b *Module) closeMaps(options map[string]CloseOptions) error {
 	for _, m := range b.maps {
-		if m.m.def.pinning > 0 {
+		doUnpin := options[fmt.Sprintf("maps/%s", m.Name)].Unpin
+		if m.m.def.pinning > 0 && doUnpin {
 			unpinMap(m)
 		}
 		for _, fd := range m.pmuFDs {
@@ -457,6 +458,12 @@ func (b *Module) closeMaps() error {
 	return nil
 }
 
+// CloseOptions can be used for custom `Close` parameters
+type CloseOptions struct {
+	// Set Unpin to true to close pinned maps as well
+	Unpin bool
+}
+
 // Close takes care of terminating all underlying BPF programs and structures.
 // That is:
 //
@@ -467,8 +474,14 @@ func (b *Module) closeMaps() error {
 //
 // It doesn't detach BPF programs from cgroups or sockets because they're
 // considered resources the user controls.
+// It also doesn't unpin pinned maps. Use CloseExt and set Unpin to do this.
 func (b *Module) Close() error {
-	if err := b.closeMaps(); err != nil {
+	return b.CloseExt(nil)
+}
+
+// CloseExt takes a map "elf section -> CloseOptions"
+func (b *Module) CloseExt(options map[string]CloseOptions) error {
+	if err := b.closeMaps(options); err != nil {
 		return err
 	}
 	if err := b.closeProbes(); err != nil {
