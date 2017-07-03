@@ -58,8 +58,5 @@ containers on different kernel versions. To run all tests on the host system,
 use `go test` as follows:
 
 ```
-go test -tags integration -v \
-  github.com/iovisor/gobpf \
-  github.com/iovisor/gobpf/elf \
-  github.com/iovisor/gobpf/bcc
+go test -tags integration -v ./...
 ```
