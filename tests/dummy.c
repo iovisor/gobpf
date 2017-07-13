@@ -120,6 +120,14 @@ int cgroup_sock__dummy(struct __sk_buff *skb)
 }
 #endif
 
+#if KERNEL_VERSION_GTE(47)
+SEC("tracepoint/raw_syscalls/sys_enter")
+int tracepoint__raw_sys_enter()
+{
+	return 0;
+}
+#endif
+
 SEC("socket/dummy")
 int socket__dummy(struct __sk_buff *skb)
 {

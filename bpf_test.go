@@ -35,12 +35,14 @@ var kernelVersion uint32
 
 var (
 	kernelVersion46  uint32
+	kernelVersion47  uint32
 	kernelVersion48  uint32
 	kernelVersion410 uint32
 )
 
 func init() {
 	kernelVersion46, _ = elf.KernelVersionFromReleaseString("4.6.0")
+	kernelVersion47, _ = elf.KernelVersionFromReleaseString("4.7.0")
 	kernelVersion48, _ = elf.KernelVersionFromReleaseString("4.8.0")
 	kernelVersion410, _ = elf.KernelVersionFromReleaseString("4.10.0")
 }
@@ -77,6 +79,15 @@ func containsProbe(probes []*elf.Kprobe, name string) bool {
 
 func containsCgroupProg(cgroupProgs []*elf.CgroupProgram, name string) bool {
 	for _, c := range cgroupProgs {
+		if c.Name == name {
+			return true
+		}
+	}
+	return false
+}
+
+func containsTracepointProg(tracepointProgs []*elf.TracepointProgram, name string) bool {
+	for _, c := range tracepointProgs {
 		if c.Name == name {
 			return true
 		}
@@ -180,6 +191,30 @@ func checkCgroupProgs(t *testing.T, b *elf.Module) {
 	}
 }
 
+func checkTracepointProgs(t *testing.T, b *elf.Module) {
+	if kernelVersion < kernelVersion47 {
+		t.Logf("kernel doesn't support bpf programs for tracepoints. Skipping...")
+		return
+	}
+
+	var expectedTracepointProgs = []string{
+		"tracepoint/raw_syscalls/sys_enter",
+	}
+
+	var tracepointProgs []*elf.TracepointProgram
+	for p := range b.IterTracepointProgram() {
+		tracepointProgs = append(tracepointProgs, p)
+	}
+	if len(tracepointProgs) != len(expectedTracepointProgs) {
+		t.Fatalf("unexpected number of tracepoint programs. Got %d, expected %v", len(tracepointProgs), len(expectedTracepointProgs))
+	}
+	for _, p := range expectedTracepointProgs {
+		if !containsTracepointProg(tracepointProgs, p) {
+			t.Fatalf("tracepoint program %q not found", p)
+		}
+	}
+}
+
 func checkSocketFilters(t *testing.T, b *elf.Module) {
 	var expectedSocketFilters = []string{
 		"socket/dummy",
@@ -230,4 +265,5 @@ func TestModuleLoadELF(t *testing.T) {
 	checkProbes(t, b)
 	checkCgroupProgs(t, b)
 	checkSocketFilters(t, b)
+	checkTracepointProgs(t, b)
 }
