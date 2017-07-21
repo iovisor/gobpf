@@ -18,7 +18,8 @@ https://github.com/iovisor/bcc/blob/master/docs/kernel-versions.md
 
 ### `github.com/iovisor/gobpf/bcc`
 
-Install [libbcc](https://github.com/iovisor/bcc/blob/master/INSTALL.md) (either by package or source).
+Install the latest released version of [libbcc](https://github.com/iovisor/bcc/blob/master/INSTALL.md)
+(either by package or source).
 
 ### `github.com/iovisor/gobpf/elf`
 
