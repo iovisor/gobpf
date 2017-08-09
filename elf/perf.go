@@ -109,7 +109,7 @@ type PerfMap struct {
 	pageCount    int
 	receiverChan chan []byte
 	lostChan     chan uint64
-	pollStop     chan bool
+	pollStop     chan struct{}
 	timestamp    func(*[]byte) uint64
 }
 
@@ -132,7 +132,7 @@ func InitPerfMap(b *Module, mapName string, receiverChan chan []byte, lostChan c
 		pageCount:    m.pageCount,
 		receiverChan: receiverChan,
 		lostChan:     lostChan,
-		pollStop:     make(chan bool),
+		pollStop:     make(chan struct{}),
 	}, nil
 }
 
@@ -241,7 +241,7 @@ func (pm *PerfMap) PollStart() {
 // PollStop stops the goroutine that polls the perf event map. Make
 // sure to close the receiverChan only *after* calling PollStop.
 func (pm *PerfMap) PollStop() {
-	pm.pollStop <- true
+	close(pm.pollStop)
 }
 
 func perfEventPoll(fds []C.int) error {
