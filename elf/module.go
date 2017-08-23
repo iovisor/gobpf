@@ -143,9 +143,8 @@ type TracepointProgram struct {
 	efd   int
 }
 
-func NewModule(fileName string) *Module {
+func newModule() *Module {
 	return &Module{
-		fileName:           fileName,
 		probes:             make(map[string]*Kprobe),
 		cgroupPrograms:     make(map[string]*CgroupProgram),
 		socketFilters:      make(map[string]*SocketFilter),
@@ -154,14 +153,16 @@ func NewModule(fileName string) *Module {
 	}
 }
 
+func NewModule(fileName string) *Module {
+	module := newModule()
+	module.fileName = fileName
+	return module
+}
+
 func NewModuleFromReader(fileReader io.ReaderAt) *Module {
-	return &Module{
-		fileReader:     fileReader,
-		probes:         make(map[string]*Kprobe),
-		cgroupPrograms: make(map[string]*CgroupProgram),
-		socketFilters:  make(map[string]*SocketFilter),
-		log:            make([]byte, 65536),
-	}
+	module := newModule()
+	module.fileReader = fileReader
+	return module
 }
 
 var kprobeIDNotExist error = errors.New("kprobe id file doesn't exist")
