@@ -339,6 +339,10 @@ func (b *Module) CgroupProgram(name string) *CgroupProgram {
 	return b.cgroupPrograms[name]
 }
 
+func (p *CgroupProgram) Fd() int {
+	return p.fd
+}
+
 func AttachCgroupProgram(cgroupProg *CgroupProgram, cgroupPath string, attachType AttachType) error {
 	f, err := os.Open(cgroupPath)
 	if err != nil {
