@@ -149,7 +149,7 @@ func newModule() *Module {
 		cgroupPrograms:     make(map[string]*CgroupProgram),
 		socketFilters:      make(map[string]*SocketFilter),
 		tracepointPrograms: make(map[string]*TracepointProgram),
-		log:                make([]byte, 262144),
+		log:                make([]byte, 524288),
 	}
 }
 
