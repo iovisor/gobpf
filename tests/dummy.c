@@ -1,37 +1,16 @@
 /*
  * Compiled with './build'
  */
+
+#include "../elf/include/bpf.h"
+
 #define SEC(NAME) __attribute__((section(NAME), used))
 
-#define BUF_SIZE_MAP_NS 256
 #define PERF_MAX_STACK_DEPTH 127
 
 #define KERNEL_VERSION_GTE(X) (KERNEL_VERSION >= X)
 
-enum bpf_map_type {
-	BPF_MAP_TYPE_UNSPEC,
-	BPF_MAP_TYPE_HASH,
-	BPF_MAP_TYPE_ARRAY,
-	BPF_MAP_TYPE_PROG_ARRAY,
-	BPF_MAP_TYPE_PERF_EVENT_ARRAY,
-	BPF_MAP_TYPE_PERCPU_HASH,
-	BPF_MAP_TYPE_PERCPU_ARRAY,
-	BPF_MAP_TYPE_STACK_TRACE,
-	BPF_MAP_TYPE_CGROUP_ARRAY,
-};
-
-struct bpf_map_def {
-	unsigned int type;
-	unsigned int key_size;
-	unsigned int value_size;
-	unsigned int max_entries;
-	unsigned int map_flags;
-	unsigned int pinning;
-	char namespace[BUF_SIZE_MAP_NS];
-};
-
 struct pt_regs{};
-struct __sk_buff{};
 
 struct bpf_map_def SEC("maps/dummy_hash") dummy_hash = {
 	.type = BPF_MAP_TYPE_HASH,
