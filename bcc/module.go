@@ -351,3 +351,24 @@ func (bpf *Module) TableIter() <-chan map[string]interface{} {
 	}()
 	return ch
 }
+
+func (bpf *Module) attachXDP(devName string, fd int) error {
+	devNameCS := C.CString(devName)
+	res, err := C.bpf_attach_xdp(devNameCS, C.int(fd))
+	defer C.free(unsafe.Pointer(devNameCS))
+
+	if res != 0 || err != nil {
+		return fmt.Errorf("failed to attach BPF xdp to device %v: %v", devName, err)
+	}
+	return nil
+}
+
+// AttachXDP attaches a xdp fd to a device.
+func (bpf *Module) AttachXDP(devName string, fd int) error {
+	return bpf.attachXDP(devName, fd)
+}
+
+// RemoveXDP removes any xdp from this device.
+func (bpf *Module) RemoveXDP(devName string) error {
+	return bpf.attachXDP(devName, -1)
+}
