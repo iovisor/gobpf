@@ -17,7 +17,6 @@
 package bpf
 
 import (
-	"strings"
 	"testing"
 
 	"github.com/iovisor/gobpf/bcc"
@@ -255,9 +254,7 @@ func TestModuleLoadELF(t *testing.T) {
 		t.Fatal("prog is nil")
 	}
 	if err := b.Load(nil); err != nil {
-		if !strings.Contains(err.Error(), "invalid argument") {
-			t.Fatal(err)
-		}
+		t.Fatal(err)
 	}
 	defer b.Close()
 

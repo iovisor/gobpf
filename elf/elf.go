@@ -288,9 +288,6 @@ func elfReadVersion(file *elf.File) (uint32, error) {
 			return 0, errors.New("version is not a __u32")
 		}
 		version := *(*C.uint32_t)(unsafe.Pointer(&data[0]))
-		if err != nil {
-			return 0, err
-		}
 		return uint32(version), nil
 	}
 	return 0, nil
