@@ -145,6 +145,7 @@ static bpf_map *bpf_load_map(bpf_map_def *map_def, const char *path)
 		// TODO to be implemented
 		return 0;
 	case 2: // PIN_GLOBAL_NS
+	case 3: // PIN_CUSTOM_NS
 		if (stat(path, &st) == 0) {
 			ret = get_pinned_obj_fd(path);
 			if (ret < 0) {
@@ -250,7 +251,17 @@ static int perf_event_open_map(int pid, int cpu, int group_fd, unsigned long fla
 */
 import "C"
 
-const useCurrentKernelVersion = 0xFFFFFFFE
+const (
+	useCurrentKernelVersion = 0xFFFFFFFE
+
+	// Object pin settings should correspond to those of other projects, e.g.:
+	// https://git.kernel.org/pub/scm/linux/kernel/git/shemminger/iproute2.git/tree/include/bpf_elf.h#n25
+	// Also it should be self-consistent with `elf/include/bpf.h` in the same repository.
+	PIN_NONE      = 0
+	PIN_OBJECT_NS = 1
+	PIN_GLOBAL_NS = 2
+	PIN_CUSTOM_NS = 3
+)
 
 // Based on https://github.com/safchain/goebpf
 // Apache License
@@ -281,31 +292,64 @@ func elfReadVersion(file *elf.File) (uint32, error) {
 	return 0, nil
 }
 
-func prepareBPFFS(namespace, name string) (string, error) {
-	err := bpffs.Mount()
-	if err != nil {
+func createPinPath(path string) (string, error) {
+	if err := bpffs.Mount(); err != nil {
 		return "", err
 	}
-	mapPath := filepath.Join(BPFFSPath, namespace, BPFDirGlobals, name)
-	err = os.MkdirAll(filepath.Dir(mapPath), syscall.S_IRWXU)
-	if err != nil {
-		return "", fmt.Errorf("error creating map directory %q: %v", filepath.Dir(mapPath), err)
+	if err := os.MkdirAll(filepath.Dir(path), syscall.S_IRWXU); err != nil {
+		return "", fmt.Errorf("error creating map directory %q: %v", filepath.Dir(path), err)
+	}
+	return path, nil
+}
+
+func validateMapPath(path string) bool {
+	if !strings.HasPrefix(path, BPFFSPath) {
+		return false
+	}
+
+	return filepath.Clean(path) == path
+}
+
+func getMapNamespace(mapDef *C.bpf_map_def) string {
+	namespacePtr := &mapDef.namespace[0]
+	return C.GoStringN(namespacePtr, C.int(C.strnlen(namespacePtr, C.BUF_SIZE_MAP_NS)))
+}
+
+func getMapPath(mapDef *C.bpf_map_def, mapName, pinPath string) (string, error) {
+	var mapPath string
+	switch mapDef.pinning {
+	case PIN_OBJECT_NS:
+		return "", fmt.Errorf("not implemented yet")
+	case PIN_GLOBAL_NS:
+		namespace := getMapNamespace(mapDef)
+		if namespace == "" {
+			return "", fmt.Errorf("map %q has empty namespace", mapName)
+		}
+		mapPath = filepath.Join(BPFFSPath, namespace, BPFDirGlobals, mapName)
+	case PIN_CUSTOM_NS:
+		if pinPath == "" {
+			return "", fmt.Errorf("no pin path given for map %q with PIN_CUSTOM_NS", mapName)
+		}
+		mapPath = filepath.Join(BPFFSPath, pinPath)
+	default:
+		// map is not pinned
+		return "", nil
 	}
 	return mapPath, nil
 }
 
-func validMapNamespace(namespaceRaw *C.char) (string, error) {
-	namespace := C.GoStringN(namespaceRaw, C.int(C.strnlen(namespaceRaw, C.BUF_SIZE_MAP_NS)))
-	if namespace == "" || namespace == "." || namespace == ".." {
-		return "", fmt.Errorf("namespace must not be %q", namespace)
+func createMapPath(mapDef *C.bpf_map_def, mapName string, params SectionParams) (string, error) {
+	mapPath, err := getMapPath(mapDef, mapName, params.PinPath)
+	if err != nil || mapPath == "" {
+		return "", err
 	}
-	if strings.Contains(namespace, "/") {
-		return "", fmt.Errorf("no '/' allowed in namespace")
+	if !validateMapPath(mapPath) {
+		return "", fmt.Errorf("invalid path %q", mapPath)
 	}
-	return namespace, nil
+	return createPinPath(mapPath)
 }
 
-func elfReadMaps(file *elf.File) (map[string]*Map, error) {
+func elfReadMaps(file *elf.File, params map[string]SectionParams) (map[string]*Map, error) {
 	maps := make(map[string]*Map)
 	for _, section := range file.Sections {
 		if !strings.HasPrefix(section.Name, "maps/") {
@@ -324,21 +368,12 @@ func elfReadMaps(file *elf.File) (map[string]*Map, error) {
 
 		mapDef := (*C.bpf_map_def)(unsafe.Pointer(&data[0]))
 
-		var mapPathC *C.char
-		if mapDef.pinning > 0 {
-			namespace, err := validMapNamespace(&mapDef.namespace[0])
-			if err != nil {
-				return nil, err
-			}
-			mapPath, err := prepareBPFFS(namespace, name)
-			if err != nil {
-				return nil, fmt.Errorf("error preparing bpf fs: %v", err)
-			}
-			mapPathC = C.CString(mapPath)
-			defer C.free(unsafe.Pointer(mapPathC))
-		} else {
-			mapPathC = nil
+		mapPath, err := createMapPath(mapDef, name, params[section.Name])
+		if err != nil {
+			return nil, err
 		}
+		mapPathC := C.CString(mapPath)
+		defer C.free(unsafe.Pointer(mapPathC))
 
 		cm, err := C.bpf_load_map(mapDef, mapPathC)
 		if cm == nil {
@@ -427,6 +462,7 @@ func (b *Module) relocate(data []byte, rdata []byte) error {
 type SectionParams struct {
 	PerfRingBufferPageCount   int
 	SkipPerfMapInitialization bool
+	PinPath                   string // path to be pinned, relative to "/sys/fs/bpf"
 }
 
 // Load loads the BPF programs and BPF maps in the module. Each ELF section
@@ -466,7 +502,7 @@ func (b *Module) Load(parameters map[string]SectionParams) error {
 		}
 	}
 
-	maps, err := elfReadMaps(b.file)
+	maps, err := elfReadMaps(b.file, parameters)
 	if err != nil {
 		return err
 	}
