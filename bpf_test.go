@@ -17,10 +17,13 @@
 package bpf
 
 import (
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/iovisor/gobpf/bcc"
 	"github.com/iovisor/gobpf/elf"
+	"github.com/iovisor/gobpf/pkg/bpffs"
 )
 
 var simple1 string = `
@@ -109,6 +112,7 @@ func checkMaps(t *testing.T, b *elf.Module) {
 		"dummy_array",
 		"dummy_prog_array",
 		"dummy_perf",
+		"dummy_array_custom",
 	}
 
 	if kernelVersion >= kernelVersion46 {
@@ -233,6 +237,22 @@ func checkSocketFilters(t *testing.T, b *elf.Module) {
 	}
 }
 
+func checkPinConfig(t *testing.T, expectedPaths []string) {
+	for _, p := range expectedPaths {
+		if fi, err := os.Stat(p); os.IsNotExist(err) || !fi.Mode().IsRegular() {
+			t.Fatalf("pinned object %q not found", p)
+		}
+	}
+}
+
+func checkPinConfigCleanup(t *testing.T, expectedPaths []string) {
+	for _, p := range expectedPaths {
+		if _, err := os.Stat(p); !os.IsNotExist(err) {
+			t.Fatalf("pinned object %q is not cleaned up", p)
+		}
+	}
+}
+
 func TestModuleLoadELF(t *testing.T) {
 	var err error
 	kernelVersion, err = elf.CurrentKernelVersion()
@@ -249,18 +269,40 @@ func TestModuleLoadELF(t *testing.T) {
 		dummyELF = "./tests/dummy-46.o"
 	}
 
+	var secParams = map[string]elf.SectionParams{
+		"maps/dummy_array_custom": elf.SectionParams{
+			PinPath: filepath.Join("gobpf-test", "testgroup1"),
+		},
+	}
+	var closeOptions = map[string]elf.CloseOptions{
+		"maps/dummy_array_custom": elf.CloseOptions{
+			Unpin:   true,
+			PinPath: filepath.Join("gobpf-test", "testgroup1"),
+		},
+	}
+
+	if err := bpffs.Mount(); err != nil {
+		t.Skipf("error mounting bpf fs, skipping test: %v", err)
+	}
+
 	b := elf.NewModule(dummyELF)
 	if b == nil {
 		t.Fatal("prog is nil")
 	}
-	if err := b.Load(nil); err != nil {
+	if err := b.Load(secParams); err != nil {
 		t.Fatal(err)
 	}
-	defer b.Close()
+	defer func() {
+		if err := b.CloseExt(closeOptions); err != nil {
+			t.Fatal(err)
+		}
+		checkPinConfigCleanup(t, []string{"/sys/fs/bpf/gobpf-test/testgroup1"})
+	}()
 
 	checkMaps(t, b)
 	checkProbes(t, b)
 	checkCgroupProgs(t, b)
 	checkSocketFilters(t, b)
 	checkTracepointProgs(t, b)
+	checkPinConfig(t, []string{"/sys/fs/bpf/gobpf-test/testgroup1"})
 }

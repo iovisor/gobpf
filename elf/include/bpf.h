@@ -617,4 +617,11 @@ typedef struct bpf_map_def {
 	char namespace[BUF_SIZE_MAP_NS];
 } bpf_map_def;
 
+enum bpf_pin_type {
+	PIN_NONE = 0,
+	PIN_OBJECT_NS,
+	PIN_GLOBAL_NS,
+	PIN_CUSTOM_NS,
+};
+
 #endif /* _UAPI__LINUX_BPF_H__ */

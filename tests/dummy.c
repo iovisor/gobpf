@@ -72,6 +72,13 @@ struct bpf_map_def SEC("maps/dummy_cgroup_array") dummy_cgroup_array = {
 };
 #endif
 
+struct bpf_map_def SEC("maps/dummy_array_custom") dummy_array_custom = {
+	.type = BPF_MAP_TYPE_ARRAY,
+	.key_size = sizeof(int),
+	.value_size = sizeof(unsigned int),
+	.max_entries = 128,
+	.pinning = PIN_CUSTOM_NS,
+};
 
 SEC("kprobe/dummy")
 int kprobe__dummy(struct pt_regs *ctx)
