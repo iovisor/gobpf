@@ -25,7 +25,6 @@ import (
 	"io"
 	"io/ioutil"
 	"os"
-	"path/filepath"
 	"strconv"
 	"strings"
 	"syscall"
@@ -504,20 +503,35 @@ func (b *Module) closeSocketFilters() error {
 	return nil
 }
 
-func unpinMap(m *Map) error {
-	if m.m.def.pinning == 0 {
-		return nil
+func unpinMap(m *Map, pinPath string) error {
+	mapPath, err := getMapPath(&m.m.def, m.Name, pinPath)
+	if err != nil {
+		return err
 	}
-	namespace := C.GoString(&m.m.def.namespace[0])
-	mapPath := filepath.Join(BPFFSPath, namespace, BPFDirGlobals, m.Name)
 	return syscall.Unlink(mapPath)
 }
 
 func (b *Module) closeMaps(options map[string]CloseOptions) error {
 	for _, m := range b.maps {
 		doUnpin := options[fmt.Sprintf("maps/%s", m.Name)].Unpin
-		if m.m.def.pinning > 0 && doUnpin {
-			unpinMap(m)
+		if doUnpin {
+			mapDef := m.m.def
+			var pinPath string
+			if mapDef.pinning == PIN_CUSTOM_NS {
+				closeOption, ok := options[fmt.Sprintf("maps/%s", m.Name)]
+				if !ok {
+					return fmt.Errorf("close option for maps/%s must have PinPath set", m.Name)
+				}
+				pinPath = closeOption.PinPath
+			} else if mapDef.pinning == PIN_GLOBAL_NS {
+				// mapDef.namespace is used for PIN_GLOBAL_NS maps
+				pinPath = ""
+			} else if mapDef.pinning == PIN_OBJECT_NS {
+				return fmt.Errorf("unpinning with PIN_OBJECT_NS is to be implemented")
+			}
+			if err := unpinMap(m, pinPath); err != nil {
+				return fmt.Errorf("error unpinning map %q: %v", m.Name, err)
+			}
 		}
 		for _, fd := range m.pmuFDs {
 			if err := syscall.Close(int(fd)); err != nil {
@@ -535,7 +549,8 @@ func (b *Module) closeMaps(options map[string]CloseOptions) error {
 // CloseOptions can be used for custom `Close` parameters
 type CloseOptions struct {
 	// Set Unpin to true to close pinned maps as well
-	Unpin bool
+	Unpin   bool
+	PinPath string
 }
 
 // Close takes care of terminating all underlying BPF programs and structures.
