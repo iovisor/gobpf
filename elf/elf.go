@@ -439,7 +439,12 @@ func (b *Module) relocate(data []byte, rdata []byte) error {
 
 		rinsn := (*C.struct_bpf_insn)(unsafe.Pointer(&rdata[offset]))
 		if rinsn.code != (C.BPF_LD | C.BPF_IMM | C.BPF_DW) {
-			return errors.New("invalid relocation")
+			symbolSec := b.file.Sections[symbol.Section]
+
+			return fmt.Errorf("invalid relocation: insn code=%#x, symbol name=%s\nsymbol section: Name=%s, Type=%s, Flags=%s",
+				*(*C.uchar)(unsafe.Pointer(&rinsn.code)), symbol.Name,
+				symbolSec.Name, symbolSec.Type.String(), symbolSec.Flags.String(),
+			)
 		}
 
 		symbolSec := b.file.Sections[symbol.Section]
