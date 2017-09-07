@@ -24,15 +24,13 @@ import (
 	bpf "github.com/iovisor/gobpf/bcc"
 )
 
-import "C"
-
 const source string = `
 #include <uapi/linux/ptrace.h>
 
 struct readline_event_t {
-        u64 pid;
+        u32 pid;
         char str[80];
-};
+} __attribute__((packed));
 
 BPF_PERF_OUTPUT(readline_events);
 
@@ -94,9 +92,8 @@ func main() {
 				fmt.Printf("failed to decode received data: %s\n", err)
 				continue
 			}
-			// the return value comes padded with 4 null chars (ascii 0), so take the index of
-			// the fifth 0 as the end of input (C strings are null terminated)
-			comm := event.Str[:bytes.IndexByte(event.Str[4:], 0)+4]
+			// Convert C string (null-terminated) to Go string
+			comm := string(event.Str[:bytes.IndexByte(event.Str[:], 0)])
 			fmt.Printf("%10d\t%s\n", event.Pid, comm)
 		}
 	}()
