@@ -209,7 +209,7 @@ func (bpf *Module) attachUProbe(evName string, attachType uint32, path string, a
 	C.free(unsafe.Pointer(binaryPathCS))
 
 	if res == nil {
-		return fmt.Errorf("failed to attach BPF kprobe: %v", err)
+		return fmt.Errorf("failed to attach BPF uprobe: %v", err)
 	}
 	bpf.uprobes[evName] = res
 	return nil
