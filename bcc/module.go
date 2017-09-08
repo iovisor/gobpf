@@ -190,12 +190,12 @@ func (bpf *Module) attachProbe(evName string, attachType uint32, fnName string, 
 
 	evNameCS := C.CString(evName)
 	fnNameCS := C.CString(fnName)
-	res := C.bpf_attach_kprobe(C.int(fd), attachType, evNameCS, fnNameCS, -1, 0, -1, nil, nil)
+	res, err := C.bpf_attach_kprobe(C.int(fd), attachType, evNameCS, fnNameCS, -1, 0, -1, nil, nil)
 	C.free(unsafe.Pointer(evNameCS))
 	C.free(unsafe.Pointer(fnNameCS))
 
 	if res == nil {
-		return fmt.Errorf("Failed to attach BPF kprobe")
+		return fmt.Errorf("failed to attach BPF kprobe: %v", err)
 	}
 	bpf.kprobes[evName] = res
 	return nil
