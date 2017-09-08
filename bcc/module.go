@@ -172,10 +172,13 @@ func (bpf *Module) load(name string, progType int) (int, error) {
 	}
 	logbuf := make([]byte, 65536)
 	logbufP := (*C.char)(unsafe.Pointer(&logbuf[0]))
-	fd := C.bpf_prog_load(uint32(progType), start, size, license, version, logbufP, C.uint(len(logbuf)))
+	fd, err := C.bpf_prog_load(uint32(progType), start, size, license, version, logbufP, C.uint(len(logbuf)))
 	if fd < 0 {
 		msg := string(logbuf[:bytes.IndexByte(logbuf, 0)])
-		return -1, fmt.Errorf("Error loading bpf program:\n%s", msg)
+		if len(msg) > 0 {
+			return -1, fmt.Errorf("error loading BPF program:\n%s", msg)
+		}
+		return -1, fmt.Errorf("error loading BPF program: %v", err)
 	}
 	return int(fd), nil
 }
@@ -190,12 +193,12 @@ func (bpf *Module) attachProbe(evName string, attachType uint32, fnName string, 
 
 	evNameCS := C.CString(evName)
 	fnNameCS := C.CString(fnName)
-	res := C.bpf_attach_kprobe(C.int(fd), attachType, evNameCS, fnNameCS, -1, 0, -1, nil, nil)
+	res, err := C.bpf_attach_kprobe(C.int(fd), attachType, evNameCS, fnNameCS, -1, 0, -1, nil, nil)
 	C.free(unsafe.Pointer(evNameCS))
 	C.free(unsafe.Pointer(fnNameCS))
 
 	if res == nil {
-		return fmt.Errorf("Failed to attach BPF kprobe")
+		return fmt.Errorf("failed to attach BPF kprobe: %v", err)
 	}
 	bpf.kprobes[evName] = res
 	return nil
@@ -209,7 +212,7 @@ func (bpf *Module) attachUProbe(evName string, attachType uint32, path string, a
 	C.free(unsafe.Pointer(binaryPathCS))
 
 	if res == nil {
-		return fmt.Errorf("failed to attach BPF kprobe: %v", err)
+		return fmt.Errorf("failed to attach BPF uprobe: %v", err)
 	}
 	bpf.uprobes[evName] = res
 	return nil
