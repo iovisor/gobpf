@@ -101,6 +101,7 @@ type Module struct {
 	cgroupPrograms     map[string]*CgroupProgram
 	socketFilters      map[string]*SocketFilter
 	tracepointPrograms map[string]*TracepointProgram
+	schedPrograms      map[string]*SchedProgram
 }
 
 // Kprobe represents a kprobe or kretprobe and has to be declared
@@ -142,12 +143,20 @@ type TracepointProgram struct {
 	efd   int
 }
 
+// SchedProgram represents a traffic classifier program
+type SchedProgram struct {
+	Name  string
+	insns *C.struct_bpf_insn
+	fd    int
+}
+
 func newModule() *Module {
 	return &Module{
 		probes:             make(map[string]*Kprobe),
 		cgroupPrograms:     make(map[string]*CgroupProgram),
 		socketFilters:      make(map[string]*SocketFilter),
 		tracepointPrograms: make(map[string]*TracepointProgram),
+		schedPrograms:      make(map[string]*SchedProgram),
 		log:                make([]byte, 524288),
 	}
 }
@@ -339,6 +348,10 @@ func (b *Module) CgroupProgram(name string) *CgroupProgram {
 	return b.cgroupPrograms[name]
 }
 
+func (p *CgroupProgram) Fd() int {
+	return p.fd
+}
+
 func AttachCgroupProgram(cgroupProg *CgroupProgram, cgroupPath string, attachType AttachType) error {
 	f, err := os.Open(cgroupPath)
 	if err != nil {
@@ -439,6 +452,14 @@ func disableKprobe(eventName string) error {
 		}
 	}
 	return nil
+}
+
+func (b *Module) SchedProgram(name string) *SchedProgram {
+	return b.schedPrograms[name]
+}
+
+func (sp *SchedProgram) Fd() int {
+	return sp.fd
 }
 
 func (b *Module) closeProbes() error {
