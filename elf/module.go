@@ -221,6 +221,11 @@ func perfEventOpenTracepoint(id int, progFd int) (int, error) {
 	return int(efd), nil
 }
 
+// Log gives users access to the log buffer with verifier messages
+func (b *Module) Log() []byte {
+	return b.log
+}
+
 // EnableKprobe enables a kprobe/kretprobe identified by secName.
 // For kretprobes, you can configure the maximum number of instances
 // of the function that can be probed simultaneously with maxactive.
