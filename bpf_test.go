@@ -70,6 +70,38 @@ func TestModuleLoadBCC(t *testing.T) {
 	}
 }
 
+func TestBCCTableDeleteAll(t *testing.T) {
+	b := bcc.NewModule(simple1, []string{})
+	if b == nil {
+		t.Fatal("prog is nil")
+	}
+	defer b.Close()
+	table := bcc.NewTable(b.TableId("table1"), b)
+	if err := table.Set("1", "11"); err != nil {
+		t.Fatalf("table.Set failed: %v", err)
+	}
+	if err := table.Set("2", "22"); err != nil {
+		t.Fatalf("table.Set failed: %v", err)
+	}
+	count := 0
+	for _ = range table.Iter() {
+		count++
+	}
+	if count != 2 {
+		t.Fatalf("expected 2 entries in table, not %d", count)
+	}
+	if err := table.DeleteAll(); err != nil {
+		t.Fatalf("table.DeleteAll failed: %v", err)
+	}
+	count = 0
+	for _ = range table.Iter() {
+		count++
+	}
+	if count != 0 {
+		t.Fatalf("expected 0 entries in table, not %d", count)
+	}
+}
+
 func containsMap(maps []*elf.Map, name string) bool {
 	for _, m := range maps {
 		if m.Name == name {
