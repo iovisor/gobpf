@@ -749,7 +749,7 @@ func (b *Module) initializePerfMaps(parameters map[string]SectionParams) error {
 				continue
 			}
 			if params.PerfRingBufferPageCount > 0 {
-				if params.PerfRingBufferPageCount <= 0 || (params.PerfRingBufferPageCount&(params.PerfRingBufferPageCount-1)) != 0 {
+				if (params.PerfRingBufferPageCount & (params.PerfRingBufferPageCount - 1)) != 0 {
 					return fmt.Errorf("number of pages (%d) must be stricly positive and a power of 2", params.PerfRingBufferPageCount)
 				}
 				b.maps[name].pageCount = params.PerfRingBufferPageCount
