@@ -54,4 +54,6 @@ for kernel_version in "${kernel_versions[@]}"; do
   if [[ $test_status -ne 0 ]]; then
     exit "$test_status"
   fi
+
+  sudo ./rkt/rkt gc --grace-period=0
 done
