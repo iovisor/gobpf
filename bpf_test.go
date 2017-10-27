@@ -286,7 +286,7 @@ func checkUpdateDeleteElement(t *testing.T, b *elf.Module) {
 	}
 
 	if err := b.UpdateElement(mp, unsafe.Pointer(&key), unsafe.Pointer(&value), BPF_EXIST); err == nil {
-		t.Fatal("succeeded updating element with BPF_EXIST, but the element was deleted to the map before")
+		t.Fatal("succeeded updating element with BPF_EXIST, but the element was deleted from the map before")
 	}
 }
 
@@ -313,6 +313,45 @@ func checkLookupElement(t *testing.T, b *elf.Module) {
 	key = 3000
 	if err := b.LookupElement(mp, unsafe.Pointer(&key), unsafe.Pointer(&lvalue)); err == nil {
 		t.Fatalf("succeeded to find an element which wasn't added previously")
+	}
+
+	found := map[int]bool{2000: false}
+	for i := 4000; i != 4010; i++ {
+		key = i
+		value = i
+		if err := b.UpdateElement(mp, unsafe.Pointer(&key), unsafe.Pointer(&value), BPF_ANY); err != nil {
+			t.Fatal("failed trying to update an element with BPF_ANY")
+		}
+		found[key] = false
+	}
+
+	key = 0
+	nextKey := 0
+	for range found {
+		f, err := b.LookupNextElement(mp, unsafe.Pointer(&key), unsafe.Pointer(&nextKey), unsafe.Pointer(&lvalue))
+		if err != nil {
+			t.Fatal("failed trying to lookup the next element")
+		}
+		if !f {
+			t.Fatalf("unable to find key %d", key)
+		}
+
+		if nextKey != lvalue {
+			t.Fatalf("key %d not corresponding to value %d", nextKey, lvalue)
+		}
+
+		if _, ok := found[nextKey]; !ok {
+			t.Fatalf("key %d found", nextKey)
+		}
+		found[nextKey] = true
+
+		key = nextKey
+	}
+
+	for key, f := range found {
+		if !f {
+			t.Fatalf("expected key %d not found", key)
+		}
 	}
 }
 
