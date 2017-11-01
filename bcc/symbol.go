@@ -36,6 +36,12 @@ type symbolAddress struct {
 	addr uint64
 }
 
+type bccSymbolOption struct {
+	useDebugFile      *C.int
+	checkDebugFileCrc *C.int
+	useSymbolType     *C.uint32_t
+}
+
 //symbolCache will cache module lookups
 var symbolCache = struct {
 	cache         map[string][]*symbolAddress
@@ -56,23 +62,34 @@ type bccSymbol struct {
 
 // resolveSymbolPath returns the file and offset to locate symname in module
 func resolveSymbolPath(module string, symname string, addr uint64, pid int) (string, uint64, error) {
+	if pid == -1 {
+		pid = 0
+	}
+
+	modname, offset, err := bccResolveSymname(module, symname, addr, pid)
+	if err != nil {
+		return "", 0, fmt.Errorf("unable to locate symbol %s in module %s: %v", symname, module, err)
+	}
+
+	return modname, offset, nil
+}
+
+func bccResolveSymname(module string, symname string, addr uint64, pid int) (string, uint64, error) {
 	symbol := &bccSymbol{}
 	symbolC := (*C.struct_bcc_symbol)(unsafe.Pointer(symbol))
+	symbolOption := &bccSymbolOption{}
+	symbolOptionC := (*C.struct_bcc_symbol_option)(unsafe.Pointer(symbolOption))
 	moduleCS := C.CString(module)
 	defer C.free(unsafe.Pointer(moduleCS))
 	symnameCS := C.CString(symname)
 	defer C.free(unsafe.Pointer(symnameCS))
 
-	if pid == -1 {
-		pid = 0
+	res, err := C.bcc_resolve_symname(moduleCS, symnameCS, (C.uint64_t)(addr), C.int(pid), symbolOptionC, symbolC)
+	if res < 0 {
+		return "", 0, fmt.Errorf("unable to locate symbol %s in module %s: %v", symname, module, err)
 	}
 
-	res, err := C.bcc_resolve_symname(moduleCS, symnameCS, (C.uint64_t)(addr), C.int(pid), symbolC)
-	if res == 0 {
-		return C.GoString(symbolC.module), (uint64)(symbolC.offset), nil
-	}
-
-	return "", 0, fmt.Errorf("unable to locate symbol %s in module %s: %v", symname, module, err)
+	return C.GoString(symbolC.module), (uint64)(symbolC.offset), nil
 }
 
 // getUserSymbolsAndAddresses finds a list of symbols associated with a module,
@@ -89,12 +106,10 @@ func getUserSymbolsAndAddresses(module string) ([]*symbolAddress, error) {
 	symbolCache.cache[module] = []*symbolAddress{}
 	symbolCache.currentModule = module
 
-	moduleCS := C.CString(module)
-	defer C.free(unsafe.Pointer(moduleCS))
-	res := C.bcc_foreach_symbol(moduleCS, (C.SYM_CB)(unsafe.Pointer(C.foreach_symbol_callback)))
-	if res < 0 {
-		return nil, fmt.Errorf("unable to list symbols for %s", module)
+	if err := bccForeachSymbol(module); err != nil {
+		return nil, err
 	}
+
 	return symbolCache.cache[module], nil
 }
 
@@ -122,4 +137,14 @@ func matchUserSymbols(module, match string) ([]*symbolAddress, error) {
 func foreach_symbol_callback(symname *C.char, addr C.uint64_t) {
 	symbolCache.cache[symbolCache.currentModule] =
 		append(symbolCache.cache[symbolCache.currentModule], &symbolAddress{C.GoString(symname), (uint64)(addr)})
+}
+
+func bccForeachSymbol(module string) error {
+	moduleCS := C.CString(module)
+	defer C.free(unsafe.Pointer(moduleCS))
+	res := C.bcc_foreach_function_symbol(moduleCS, (C.SYM_CB)(unsafe.Pointer(C.foreach_symbol_callback)))
+	if res < 0 {
+		return fmt.Errorf("unable to list symbols for %s", module)
+	}
+	return nil
 }

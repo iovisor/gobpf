@@ -128,9 +128,8 @@ func InitPerfMap(table *Table, receiverChan chan []byte) (*PerfMap, error) {
 	}
 
 	for _, cpu := range cpus {
-		cpuC := C.int(cpu)
-		reader, err := C.bpf_open_perf_buffer((C.perf_reader_raw_cb)(unsafe.Pointer(C.callback_to_go)), unsafe.Pointer(uintptr(callbackDataIndex)), -1, cpuC, BPF_PERF_READER_PAGE_CNT)
-		if reader == nil {
+		reader, err := bpfOpenPerfBuffer(cpu, callbackDataIndex)
+		if err != nil {
 			return nil, fmt.Errorf("failed to open perf buffer: %v", err)
 		}
 
@@ -179,4 +178,17 @@ func (pm *PerfMap) poll(timeout int) {
 			C.perf_reader_poll(C.int(len(pm.readers)), &pm.readers[0], C.int(timeout))
 		}
 	}
+}
+
+func bpfOpenPerfBuffer(cpu uint, callbackDataIndex uint64) (unsafe.Pointer, error) {
+	cpuC := C.int(cpu)
+	reader, err := C.bpf_open_perf_buffer(
+		(C.perf_reader_raw_cb)(unsafe.Pointer(C.callback_to_go)),
+		nil,
+		unsafe.Pointer(uintptr(callbackDataIndex)),
+		-1, cpuC, BPF_PERF_READER_PAGE_CNT)
+	if reader == nil {
+		return nil, fmt.Errorf("failed to open perf buffer: %v", err)
+	}
+	return reader, nil
 }

@@ -38,7 +38,7 @@ for kernel_version in "${kernel_versions[@]}"; do
     --dns=8.8.8.8 \
     --stage1-name="kinvolk.io/aci/rkt/stage1-kvm:${rkt_version},kernelversion=${kernel_version}" \
     --volume=gobpf,kind=host,source="$PWD" \
-    docker://schu/gobpf-ci \
+    docker://schu/gobpf-ci:3b65a12efe11503eac6ac2d6bfeff2b87f413088 \
     --memory=1024M \
     --mount=volume=gobpf,target=/go/src/github.com/iovisor/gobpf \
     --environment=GOPATH=/go \
@@ -54,4 +54,6 @@ for kernel_version in "${kernel_versions[@]}"; do
   if [[ $test_status -ne 0 ]]; then
     exit "$test_status"
   fi
+
+  sudo ./rkt/rkt gc --grace-period=0
 done
