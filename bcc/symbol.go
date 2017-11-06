@@ -36,12 +36,6 @@ type symbolAddress struct {
 	addr uint64
 }
 
-type bccSymbolOption struct {
-	useDebugFile      *C.int
-	checkDebugFileCrc *C.int
-	useSymbolType     *C.uint32_t
-}
-
 //symbolCache will cache module lookups
 var symbolCache = struct {
 	cache         map[string][]*symbolAddress
@@ -77,14 +71,12 @@ func resolveSymbolPath(module string, symname string, addr uint64, pid int) (str
 func bccResolveSymname(module string, symname string, addr uint64, pid int) (string, uint64, error) {
 	symbol := &bccSymbol{}
 	symbolC := (*C.struct_bcc_symbol)(unsafe.Pointer(symbol))
-	symbolOption := &bccSymbolOption{}
-	symbolOptionC := (*C.struct_bcc_symbol_option)(unsafe.Pointer(symbolOption))
 	moduleCS := C.CString(module)
 	defer C.free(unsafe.Pointer(moduleCS))
 	symnameCS := C.CString(symname)
 	defer C.free(unsafe.Pointer(symnameCS))
 
-	res, err := C.bcc_resolve_symname(moduleCS, symnameCS, (C.uint64_t)(addr), C.int(pid), symbolOptionC, symbolC)
+	res, err := C.bcc_resolve_symname(moduleCS, symnameCS, (C.uint64_t)(addr), C.int(pid), nil, symbolC)
 	if res < 0 {
 		return "", 0, fmt.Errorf("unable to locate symbol %s in module %s: %v", symname, module, err)
 	}
