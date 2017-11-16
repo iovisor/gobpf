@@ -160,7 +160,7 @@ func checkProbes(t *testing.T, b *elf.Module) {
 		probes = append(probes, p)
 	}
 	if len(probes) != len(expectedProbes) {
-		t.Fatalf("unexpected number of probes. Got %d, expected", len(probes), len(expectedProbes))
+		t.Fatalf("unexpected number of probes. Got %d, expected %d", len(probes), len(expectedProbes))
 	}
 	for _, ek := range expectedProbes {
 		if !containsProbe(probes, ek) {
@@ -257,7 +257,7 @@ func TestModuleLoadELF(t *testing.T) {
 	var err error
 	kernelVersion, err = elf.CurrentKernelVersion()
 	if err != nil {
-		t.Fatalf("error getting current kernel version: %v")
+		t.Fatalf("error getting current kernel version: %v", err)
 	}
 
 	dummyELF := "./tests/dummy.o"
