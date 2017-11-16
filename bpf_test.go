@@ -20,10 +20,18 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"unsafe"
 
 	"github.com/iovisor/gobpf/bcc"
 	"github.com/iovisor/gobpf/elf"
 	"github.com/iovisor/gobpf/pkg/bpffs"
+)
+
+// redefine flags here as cgo in test is not supported
+const (
+	BPF_ANY     = 0 /* create new element or update existing */
+	BPF_NOEXIST = 1 /* create new element if it didn't exist */
+	BPF_EXIST   = 2
 )
 
 var simple1 string = `
@@ -253,6 +261,61 @@ func checkPinConfigCleanup(t *testing.T, expectedPaths []string) {
 	}
 }
 
+func checkUpdateDeleteElement(t *testing.T, b *elf.Module) {
+	mp := b.Map("dummy_hash")
+	if mp == nil {
+		t.Fatal("unable to find dummy_hash map")
+	}
+
+	key := 1000
+	value := 1000
+	if err := b.UpdateElement(mp, unsafe.Pointer(&key), unsafe.Pointer(&value), BPF_ANY); err != nil {
+		t.Fatal("failed trying to update an element with BPF_ANY")
+	}
+
+	if err := b.UpdateElement(mp, unsafe.Pointer(&key), unsafe.Pointer(&value), BPF_NOEXIST); err == nil {
+		t.Fatal("succeeded updating element with BPF_NOEXIST, but an element with the same key was added to the map before")
+	}
+
+	if err := b.UpdateElement(mp, unsafe.Pointer(&key), unsafe.Pointer(&value), BPF_EXIST); err != nil {
+		t.Fatal("failed trying to update an element with BPF_EXIST while the key was added to the map before")
+	}
+
+	if err := b.DeleteElement(mp, unsafe.Pointer(&key)); err != nil {
+		t.Fatal("failed to delete an element")
+	}
+
+	if err := b.UpdateElement(mp, unsafe.Pointer(&key), unsafe.Pointer(&value), BPF_EXIST); err == nil {
+		t.Fatal("succeeded updating element with BPF_EXIST, but the element was deleted to the map before")
+	}
+}
+
+func checkLookupElement(t *testing.T, b *elf.Module) {
+	mp := b.Map("dummy_hash")
+	if mp == nil {
+		t.Fatal("unable to find dummy_hash map")
+	}
+
+	key := 2000
+	value := 2000
+	if err := b.UpdateElement(mp, unsafe.Pointer(&key), unsafe.Pointer(&value), BPF_ANY); err != nil {
+		t.Fatal("failed trying to update an element with BPF_ANY")
+	}
+
+	var lvalue int
+	if err := b.LookupElement(mp, unsafe.Pointer(&key), unsafe.Pointer(&lvalue)); err != nil {
+		t.Fatal("failed trying to lookup an element previously added")
+	}
+	if value != lvalue {
+		t.Fatalf("wrong value returned, expected %d, got %d", value, lvalue)
+	}
+
+	key = 3000
+	if err := b.LookupElement(mp, unsafe.Pointer(&key), unsafe.Pointer(&lvalue)); err == nil {
+		t.Fatalf("succeeded to find an element which wasn't added previously")
+	}
+}
+
 func TestModuleLoadELF(t *testing.T) {
 	var err error
 	kernelVersion, err = elf.CurrentKernelVersion()
@@ -305,4 +368,6 @@ func TestModuleLoadELF(t *testing.T) {
 	checkSocketFilters(t, b)
 	checkTracepointProgs(t, b)
 	checkPinConfig(t, []string{"/sys/fs/bpf/gobpf-test/testgroup1"})
+	checkUpdateDeleteElement(t, b)
+	checkLookupElement(t, b)
 }
