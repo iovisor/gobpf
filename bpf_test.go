@@ -20,10 +20,18 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"unsafe"
 
 	"github.com/iovisor/gobpf/bcc"
 	"github.com/iovisor/gobpf/elf"
 	"github.com/iovisor/gobpf/pkg/bpffs"
+)
+
+// redefine flags here as cgo in test is not supported
+const (
+	BPF_ANY     = 0 /* create new element or update existing */
+	BPF_NOEXIST = 1 /* create new element if it didn't exist */
+	BPF_EXIST   = 2
 )
 
 var simple1 string = `
@@ -160,7 +168,7 @@ func checkProbes(t *testing.T, b *elf.Module) {
 		probes = append(probes, p)
 	}
 	if len(probes) != len(expectedProbes) {
-		t.Fatalf("unexpected number of probes. Got %d, expected", len(probes), len(expectedProbes))
+		t.Fatalf("unexpected number of probes. Got %d, expected %d", len(probes), len(expectedProbes))
 	}
 	for _, ek := range expectedProbes {
 		if !containsProbe(probes, ek) {
@@ -253,11 +261,105 @@ func checkPinConfigCleanup(t *testing.T, expectedPaths []string) {
 	}
 }
 
+func checkUpdateDeleteElement(t *testing.T, b *elf.Module) {
+	mp := b.Map("dummy_hash")
+	if mp == nil {
+		t.Fatal("unable to find dummy_hash map")
+	}
+
+	key := 1000
+	value := 1000
+	if err := b.UpdateElement(mp, unsafe.Pointer(&key), unsafe.Pointer(&value), BPF_ANY); err != nil {
+		t.Fatal("failed trying to update an element with BPF_ANY")
+	}
+
+	if err := b.UpdateElement(mp, unsafe.Pointer(&key), unsafe.Pointer(&value), BPF_NOEXIST); err == nil {
+		t.Fatal("succeeded updating element with BPF_NOEXIST, but an element with the same key was added to the map before")
+	}
+
+	if err := b.UpdateElement(mp, unsafe.Pointer(&key), unsafe.Pointer(&value), BPF_EXIST); err != nil {
+		t.Fatal("failed trying to update an element with BPF_EXIST while the key was added to the map before")
+	}
+
+	if err := b.DeleteElement(mp, unsafe.Pointer(&key)); err != nil {
+		t.Fatal("failed to delete an element")
+	}
+
+	if err := b.UpdateElement(mp, unsafe.Pointer(&key), unsafe.Pointer(&value), BPF_EXIST); err == nil {
+		t.Fatal("succeeded updating element with BPF_EXIST, but the element was deleted from the map before")
+	}
+}
+
+func checkLookupElement(t *testing.T, b *elf.Module) {
+	mp := b.Map("dummy_hash")
+	if mp == nil {
+		t.Fatal("unable to find dummy_hash map")
+	}
+
+	key := 2000
+	value := 2000
+	if err := b.UpdateElement(mp, unsafe.Pointer(&key), unsafe.Pointer(&value), BPF_ANY); err != nil {
+		t.Fatal("failed trying to update an element with BPF_ANY")
+	}
+
+	var lvalue int
+	if err := b.LookupElement(mp, unsafe.Pointer(&key), unsafe.Pointer(&lvalue)); err != nil {
+		t.Fatal("failed trying to lookup an element previously added")
+	}
+	if value != lvalue {
+		t.Fatalf("wrong value returned, expected %d, got %d", value, lvalue)
+	}
+
+	key = 3000
+	if err := b.LookupElement(mp, unsafe.Pointer(&key), unsafe.Pointer(&lvalue)); err == nil {
+		t.Fatalf("succeeded to find an element which wasn't added previously")
+	}
+
+	found := map[int]bool{2000: false}
+	for i := 4000; i != 4010; i++ {
+		key = i
+		value = i
+		if err := b.UpdateElement(mp, unsafe.Pointer(&key), unsafe.Pointer(&value), BPF_ANY); err != nil {
+			t.Fatal("failed trying to update an element with BPF_ANY")
+		}
+		found[key] = false
+	}
+
+	key = 0
+	nextKey := 0
+	for range found {
+		f, err := b.LookupNextElement(mp, unsafe.Pointer(&key), unsafe.Pointer(&nextKey), unsafe.Pointer(&lvalue))
+		if err != nil {
+			t.Fatal("failed trying to lookup the next element")
+		}
+		if !f {
+			t.Fatalf("unable to find key %d", key)
+		}
+
+		if nextKey != lvalue {
+			t.Fatalf("key %d not corresponding to value %d", nextKey, lvalue)
+		}
+
+		if _, ok := found[nextKey]; !ok {
+			t.Fatalf("key %d found", nextKey)
+		}
+		found[nextKey] = true
+
+		key = nextKey
+	}
+
+	for key, f := range found {
+		if !f {
+			t.Fatalf("expected key %d not found", key)
+		}
+	}
+}
+
 func TestModuleLoadELF(t *testing.T) {
 	var err error
 	kernelVersion, err = elf.CurrentKernelVersion()
 	if err != nil {
-		t.Fatalf("error getting current kernel version: %v")
+		t.Fatalf("error getting current kernel version: %v", err)
 	}
 
 	dummyELF := "./tests/dummy.o"
@@ -305,4 +407,6 @@ func TestModuleLoadELF(t *testing.T) {
 	checkSocketFilters(t, b)
 	checkTracepointProgs(t, b)
 	checkPinConfig(t, []string{"/sys/fs/bpf/gobpf-test/testgroup1"})
+	checkUpdateDeleteElement(t, b)
+	checkLookupElement(t, b)
 }
