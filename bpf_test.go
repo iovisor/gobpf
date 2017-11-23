@@ -19,6 +19,7 @@ package bpf
 import (
 	"os"
 	"path/filepath"
+	"syscall"
 	"testing"
 	"unsafe"
 
@@ -242,6 +243,25 @@ func checkSocketFilters(t *testing.T, b *elf.Module) {
 		if !containsSocketFilter(socketFilters, sf) {
 			t.Fatalf("socket filter %q not found", sf)
 		}
+	}
+
+	fd, err := syscall.Socket(syscall.AF_PACKET, syscall.SOCK_RAW, syscall.ETH_P_ALL)
+	if err != nil {
+		t.Fatalf("unable to open a raw socket: %s", err)
+	}
+	defer syscall.Close(fd)
+
+	socketFilter := b.SocketFilter("socket/dummy")
+	if socketFilter == nil {
+		t.Fatal("socket filter dummy not found")
+	}
+
+	if err := elf.AttachSocketFilter(socketFilter, fd); err != nil {
+		t.Fatalf("failed trying to attach socket filter: %s", err)
+	}
+
+	if err := elf.DetachSocketFilter(socketFilter, fd); err != nil {
+		t.Fatalf("failed trying to detach socket filter: %s", err)
 	}
 }
 

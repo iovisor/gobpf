@@ -83,9 +83,9 @@ int bpf_attach_socket(int sock, int fd)
 	return setsockopt(sock, SOL_SOCKET, SO_ATTACH_BPF, &fd, sizeof(fd));
 }
 
-int bpf_detach_socket(int sock)
+int bpf_detach_socket(int sock, int fd)
 {
-	return setsockopt(sock, SOL_SOCKET, SO_DETACH_BPF, NULL, 0);
+	return setsockopt(sock, SOL_SOCKET, SO_DETACH_BPF, &fd, sizeof(fd));
 }
 */
 import "C"
@@ -419,8 +419,8 @@ func (sf *SocketFilter) Fd() int {
 	return sf.fd
 }
 
-func DetachSocketFilter(sockFd int) error {
-	ret, err := C.bpf_detach_socket(C.int(sockFd))
+func DetachSocketFilter(socketFilter *SocketFilter, sockFd int) error {
+	ret, err := C.bpf_detach_socket(C.int(sockFd), C.int(socketFilter.fd))
 	if ret != 0 {
 		return fmt.Errorf("error detaching BPF socket filter: %v", err)
 	}
