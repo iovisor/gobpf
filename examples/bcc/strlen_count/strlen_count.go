@@ -13,14 +13,12 @@
 package main
 
 import (
-	"encoding/hex"
 	"flag"
 	"fmt"
 	"os"
 	"os/signal"
 	"regexp"
-	"strconv"
-	"strings"
+	"sort"
 
 	bpf "github.com/iovisor/gobpf/bcc"
 )
@@ -48,23 +46,9 @@ int count(struct pt_regs *ctx) {
 
 var ansiEscape = regexp.MustCompile(`[[:cntrl:]]`)
 
-func decodeHexString(raw string) ([]byte, error) {
-	ret := ""
-	// split on whitespace, replace 0x66 --> 66, concatenate the results then hex decode
-	for _, c := range strings.Split(strings.Replace(raw, "0x", "", -1), " ") {
-		if c == "[" || c == "]" {
-			continue
-		}
-		if c == "0" {
-			break
-		}
-		ret = fmt.Sprintf("%s%s", ret, c)
-	}
-	return hex.DecodeString(ret)
-}
-
-func decodeHexInt(raw string) (uint64, error) {
-	return strconv.ParseUint(raw, 0, 64)
+type result struct {
+	k string
+	v uint64
 }
 
 func main() {
@@ -94,16 +78,32 @@ func main() {
 	<-sig
 
 	fmt.Printf("%10s %s\n", "COUNT", "STRING")
+
+	results := []result{}
+
 	for evt := range table.Iter() {
-		k, err := decodeHexString(evt.Key)
-		if err != nil {
+		var res result
+
+		if err := evt.UnmarshalKey(&res.k); err != nil {
+			fmt.Fprintln(os.Stderr, "Couldn't read table key: ", err)
 			continue
 		}
 
-		v, err := decodeHexInt(evt.Value)
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "unable to decode result: %s\n", err)
+		if err := evt.UnmarshalValue(&res.v); err != nil {
+			fmt.Fprintln(os.Stderr, "Couldn't read table value: ", err)
+			continue
 		}
-		fmt.Printf("%10d \"%s\"\n", v, ansiEscape.ReplaceAll(k, []byte{}))
+
+		res.k = ansiEscape.ReplaceAllString(res.k, "")
+
+		results = append(results, res)
+	}
+
+	sort.Slice(results, func(i, j int) bool {
+		return results[i].v > results[j].v
+	})
+
+	for _, r := range results {
+		fmt.Printf("%10d \"%s\"\n", r.v, r.k)
 	}
 }
