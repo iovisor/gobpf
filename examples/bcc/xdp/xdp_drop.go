@@ -132,12 +132,15 @@ func main() {
 	})
 	defer module.Close()
 
-	fn, err := module.Load("xdp_prog1", C.BPF_PROG_TYPE_XDP)
+	fn, err := module.Load("xdp_prog1", C.BPF_PROG_TYPE_XDP, 1, 65536)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Failed to load xdp prog: %v\n", err)
+		os.Exit(1)
+	}
 
 	err = module.AttachXDP(device, fn)
-
 	if err != nil {
-		fmt.Println(err)
+		fmt.Fprintf(os.Stderr, "Failed to attach xdp prog: %v\n", err)
 		os.Exit(1)
 	}
 

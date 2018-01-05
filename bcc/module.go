@@ -15,7 +15,6 @@
 package bcc
 
 import (
-	"bytes"
 	"fmt"
 	"regexp"
 	"runtime"
@@ -46,8 +45,6 @@ type compileRequest struct {
 	cflags []string
 	rspCh  chan *Module
 }
-
-const defaultLogLevel = 1
 
 const (
 	BPF_PROBE_ENTRY = iota
@@ -135,26 +132,26 @@ func (bpf *Module) Close() {
 
 // LoadNet loads a program of type BPF_PROG_TYPE_SCHED_ACT.
 func (bpf *Module) LoadNet(name string) (int, error) {
-	return bpf.Load(name, C.BPF_PROG_TYPE_SCHED_ACT)
+	return bpf.Load(name, C.BPF_PROG_TYPE_SCHED_ACT, 0, 0)
 }
 
 // LoadKprobe loads a program of type BPF_PROG_TYPE_KPROBE.
 func (bpf *Module) LoadKprobe(name string) (int, error) {
-	return bpf.Load(name, C.BPF_PROG_TYPE_KPROBE)
+	return bpf.Load(name, C.BPF_PROG_TYPE_KPROBE, 0, 0)
 }
 
 // LoadUprobe loads a program of type BPF_PROG_TYPE_KPROBE.
 func (bpf *Module) LoadUprobe(name string) (int, error) {
-	return bpf.Load(name, C.BPF_PROG_TYPE_KPROBE)
+	return bpf.Load(name, C.BPF_PROG_TYPE_KPROBE, 0, 0)
 }
 
 // Load a program.
-func (bpf *Module) Load(name string, progType int) (int, error) {
+func (bpf *Module) Load(name string, progType int, logLevel, logSize uint) (int, error) {
 	fd, ok := bpf.funcs[name]
 	if ok {
 		return fd, nil
 	}
-	fd, err := bpf.load(name, progType)
+	fd, err := bpf.load(name, progType, logLevel, logSize)
 	if err != nil {
 		return -1, err
 	}
@@ -162,7 +159,7 @@ func (bpf *Module) Load(name string, progType int) (int, error) {
 	return fd, nil
 }
 
-func (bpf *Module) load(name string, progType int) (int, error) {
+func (bpf *Module) load(name string, progType int, logLevel, logSize uint) (int, error) {
 	nameCS := C.CString(name)
 	defer C.free(unsafe.Pointer(nameCS))
 	start := (*C.struct_bpf_insn)(C.bpf_function_start(bpf.p, nameCS))
@@ -172,14 +169,14 @@ func (bpf *Module) load(name string, progType int) (int, error) {
 	if start == nil {
 		return -1, fmt.Errorf("Module: unable to find %s", name)
 	}
-	logbuf := make([]byte, 65536)
-	logbufP := (*C.char)(unsafe.Pointer(&logbuf[0]))
-	fd, err := C.bpf_prog_load(uint32(progType), nameCS, start, size, license, version, defaultLogLevel, logbufP, C.uint(len(logbuf)))
+	var logBuf []byte
+	var logBufP *C.char
+	if logSize > 0 {
+		logBuf = make([]byte, logSize)
+		logBufP = (*C.char)(unsafe.Pointer(&logBuf[0]))
+	}
+	fd, err := C.bpf_prog_load(uint32(progType), nameCS, start, size, license, version, C.int(logLevel), logBufP, C.uint(len(logBuf)))
 	if fd < 0 {
-		msg := string(logbuf[:bytes.IndexByte(logbuf, 0)])
-		if len(msg) > 0 {
-			return -1, fmt.Errorf("error loading BPF program:\n%s", msg)
-		}
 		return -1, fmt.Errorf("error loading BPF program: %v", err)
 	}
 	return int(fd), nil
