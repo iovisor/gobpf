@@ -289,7 +289,7 @@ func (bpf *Module) AttachUretprobe(name, symbol string, fd, pid int) error {
 	if err != nil {
 		return err
 	}
-	evName := fmt.Sprintf("p_%s_0x%x", uprobeRegexp.ReplaceAllString(path, "_"), addr)
+	evName := fmt.Sprintf("r_%s_0x%x", uprobeRegexp.ReplaceAllString(path, "_"), addr)
 	return bpf.attachUProbe(evName, BPF_PROBE_RETURN, path, addr, fd, pid)
 }
 
