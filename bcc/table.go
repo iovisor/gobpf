@@ -164,6 +164,23 @@ func (table *Table) Delete(keyStr string) error {
 	return nil
 }
 
+// Delete all keys from the table
+func (table *Table) DeleteAll() error {
+	mod := table.module.p
+	fd := C.bpf_table_fd_id(mod, table.id)
+
+	keySize := C.bpf_table_key_size_id(mod, table.id)
+	key := make([]byte, keySize)
+	keyP := unsafe.Pointer(&key[0])
+	for res := C.bpf_get_first_key(fd, keyP, keySize); res == 0; res = C.bpf_get_next_key(fd, keyP, keyP) {
+		r, err := C.bpf_delete_elem(fd, keyP)
+		if r != 0 {
+			return fmt.Errorf("Table.DeleteAll: unable to delete element: %v", err)
+		}
+	}
+	return nil
+}
+
 // Iter returns a receiver channel to iterate over all table entries.
 func (table *Table) Iter() <-chan Entry {
 	mod := table.module.p
