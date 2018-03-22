@@ -6,6 +6,7 @@ import (
 )
 
 /*
+#include <linux/version.h>
 #include <linux/bpf.h>
 #include <linux/unistd.h>
 #include <errno.h>
@@ -21,7 +22,7 @@ int bpf_prog_test_run(int fd, int repeat, char *data, int data_size,
 		      char *data_out, int *data_out_size, int *retval,
 		      int *duration)
 {
-#ifdef BPF_PROG_TEST_RUN
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4,12,0)
 	union bpf_attr attr = {};
 	int ret;
 
