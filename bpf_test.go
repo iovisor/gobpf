@@ -26,6 +26,7 @@ import (
 	"github.com/iovisor/gobpf/bcc"
 	"github.com/iovisor/gobpf/elf"
 	"github.com/iovisor/gobpf/pkg/bpffs"
+	"github.com/iovisor/gobpf/pkg/progtestrun"
 )
 
 // redefine flags here as cgo in test is not supported
@@ -49,6 +50,7 @@ var (
 	kernelVersion47  uint32
 	kernelVersion48  uint32
 	kernelVersion410 uint32
+	kernelVersion412 uint32
 )
 
 func init() {
@@ -56,6 +58,7 @@ func init() {
 	kernelVersion47, _ = elf.KernelVersionFromReleaseString("4.7.0")
 	kernelVersion48, _ = elf.KernelVersionFromReleaseString("4.8.0")
 	kernelVersion410, _ = elf.KernelVersionFromReleaseString("4.10.0")
+	kernelVersion412, _ = elf.KernelVersionFromReleaseString("4.12.0")
 }
 
 func TestModuleLoadBCC(t *testing.T) {
@@ -407,6 +410,26 @@ func checkLookupElement(t *testing.T, b *elf.Module) {
 	}
 }
 
+func checkProgTestRun(t *testing.T, b *elf.Module) {
+	if kernelVersion < kernelVersion412 {
+		t.Logf("kernel doesn't support BPF_PROG_TEST_RUN. Skipping...")
+		return
+	}
+	prog := b.CgroupProgram("cgroup/skb")
+	if prog == nil {
+		t.Fatal("unable to find prog")
+	}
+	// minimum amount of input data, but unused
+	data := make([]byte, 14)
+	returnValue, _, _, err := progtestrun.Run(prog.Fd(), 1, data, nil)
+	if err != nil {
+		t.Fatalf("bpf_prog_test_run failed: %v", err)
+	}
+	if returnValue != 123 {
+		t.Fatalf("expected return value 123, got %d", returnValue)
+	}
+}
+
 func TestModuleLoadELF(t *testing.T) {
 	var err error
 	kernelVersion, err = elf.CurrentKernelVersion()
@@ -461,4 +484,5 @@ func TestModuleLoadELF(t *testing.T) {
 	checkPinConfig(t, []string{"/sys/fs/bpf/gobpf-test/testgroup1"})
 	checkUpdateDeleteElement(t, b)
 	checkLookupElement(t, b)
+	checkProgTestRun(t, b)
 }
