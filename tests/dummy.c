@@ -96,7 +96,7 @@ int kretprobe__dummy(struct pt_regs *ctx)
 SEC("cgroup/skb")
 int cgroup_skb__dummy(struct __sk_buff *skb)
 {
-	return 0;
+	return 123;
 }
 
 SEC("cgroup/sock")
