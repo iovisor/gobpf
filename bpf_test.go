@@ -17,8 +17,11 @@
 package bpf
 
 import (
+	"bytes"
+	"encoding/binary"
 	"os"
 	"path/filepath"
+	"strconv"
 	"syscall"
 	"testing"
 	"unsafe"
@@ -70,6 +73,74 @@ func TestModuleLoadBCC(t *testing.T) {
 	_, err := b.LoadKprobe("func1")
 	if err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestBCCIterTable(t *testing.T) {
+	b := bcc.NewModule(simple1, []string{})
+	if b == nil {
+		t.Fatal("prog is nil")
+	}
+	defer b.Close()
+
+	table := bcc.NewTable(b.TableId("table1"), b)
+	if err := table.Set("1", "11"); err != nil {
+		t.Fatalf("table.Set failed: %v", err)
+	}
+	if err := table.Set("2", "22"); err != nil {
+		t.Fatalf("table.Set failed: %v", err)
+	}
+
+	resIter := make(map[int32]int32)
+	for entry := range table.Iter() {
+		k, err := strconv.ParseInt(entry.Key[2:], 16, 32)
+		if err != nil {
+			t.Fatalf("table.Iter failed: non-number key-str: %v", err)
+		}
+		v, err := strconv.ParseInt(entry.Value[2:], 16, 32)
+		if err != nil {
+			t.Fatalf("table.Iter failed: non-number value-str: %v", err)
+		}
+		resIter[int32(k)] = int32(v)
+	}
+
+	hostEndian := bcc.GetHostByteOrder()
+	resIterRaw := make(map[int32]int32)
+	iter := table.IterRaw()
+	for iter.Next() {
+		key, leaf := iter.Key(), iter.Leaf()
+
+		var k, v int32
+		if err := binary.Read(bytes.NewBuffer(key), hostEndian, &k); err != nil {
+			t.Fatalf("table.Iter failed: cannot decode key: %v", err)
+		}
+		if err := binary.Read(bytes.NewBuffer(leaf), hostEndian, &v); err != nil {
+			t.Fatalf("table.Iter failed: cannot decode value: %v", err)
+		}
+		resIterRaw[k] = v
+	}
+
+	if iter.Err() != nil {
+		t.Fatalf("table.Iter failed: iteration finished with unexpected error: %v", iter.Err())
+	}
+
+	if count := len(resIter); count != 2 {
+		t.Fatalf("expected 2 entries in Iter table, not %d", count)
+	}
+
+	if count := len(resIterRaw); count != 2 {
+		t.Fatalf("expected 2 entries in Iter table, not %d", count)
+	}
+
+	for _, te := range [][]int32{{1, 11}, {2, 22}} {
+		resI := resIter[te[0]]
+		resR := resIterRaw[te[0]]
+		if resI != te[1] {
+			t.Fatalf("expected entry %d in Iter table to contain %d, but got %d", te[0], te[1], resI)
+		}
+		if resR != te[1] {
+			t.Fatalf("expected entry %d in Iter table to contain %d, but got %d", te[0], te[1], resR)
+		}
 	}
 }
 

@@ -16,7 +16,9 @@ package bcc
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
+	"os"
 	"unsafe"
 )
 
@@ -27,6 +29,8 @@ import (
 #include <bcc/libbpf.h>
 */
 import "C"
+
+var errIterationFailed = errors.New("table.Iter: leaf for next key not found")
 
 type Table struct {
 	id     C.size_t
@@ -233,4 +237,88 @@ func (table *Table) Iter() <-chan Entry {
 		}
 	}()
 	return ch
+}
+
+// TableIterator contains the current position for iteration over a *bcc.Table and provides methods for iteration.
+type TableIterator struct {
+	table *Table
+	fd    C.int
+
+	err error
+
+	key  []byte
+	leaf []byte
+}
+
+// IterRaw returns an iterator to list all table entries available as raw bytes.
+func (table *Table) IterRaw() *TableIterator {
+	fd := C.bpf_table_fd_id(table.module.p, table.id)
+
+	return &TableIterator{
+		table: table,
+		fd:    fd,
+	}
+}
+
+// Next looks up the next element and return true if one is available.
+func (it *TableIterator) Next() bool {
+	if it.err != nil {
+		return false
+	}
+
+	if it.key == nil {
+		keySize := C.bpf_table_key_size_id(it.table.module.p, it.table.id)
+
+		key := make([]byte, keySize)
+		keyP := unsafe.Pointer(&key[0])
+		if res, err := C.bpf_get_first_key(it.fd, keyP, keySize); res != 0 {
+			if !os.IsNotExist(err) {
+				it.err = err
+			}
+			return false
+		}
+
+		leafSize := C.bpf_table_leaf_size_id(it.table.module.p, it.table.id)
+		leaf := make([]byte, leafSize)
+
+		it.key = key
+		it.leaf = leaf
+	} else {
+		keyP := unsafe.Pointer(&it.key[0])
+		if res, err := C.bpf_get_next_key(it.fd, keyP, keyP); res != 0 {
+			if !os.IsNotExist(err) {
+				it.err = err
+			}
+			return false
+		}
+	}
+
+	keyP := unsafe.Pointer(&it.key[0])
+	leafP := unsafe.Pointer(&it.leaf[0])
+	if res, err := C.bpf_lookup_elem(it.fd, keyP, leafP); res != 0 {
+		it.err = errIterationFailed
+		if !os.IsNotExist(err) {
+			it.err = err
+		}
+		return false
+	}
+
+	return true
+}
+
+// Key returns the current key value of the iterator, if the most recent call to Next returned true.
+// The slice is valid only until the next call to Next.
+func (it *TableIterator) Key() []byte {
+	return it.key
+}
+
+// Leaf returns the current leaf value of the iterator, if the most recent call to Next returned true.
+// The slice is valid only until the next call to Next.
+func (it *TableIterator) Leaf() []byte {
+	return it.leaf
+}
+
+// Err returns the last error that ocurred while table.Iter oder iter.Next
+func (it *TableIterator) Err() error {
+	return it.err
 }
