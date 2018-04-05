@@ -68,27 +68,16 @@ func (table *Table) Config() map[string]interface{} {
 	}
 }
 
-func (table *Table) keyToBytes(keyStr string) ([]byte, error) {
+func (table *Table) LeafStrToBytes(leafStr string) ([]byte, error) {
 	mod := table.module.p
-	key_size := C.bpf_table_key_size_id(mod, table.id)
-	key := make([]byte, key_size)
-	keyP := unsafe.Pointer(&key[0])
-	keyCS := C.CString(keyStr)
-	defer C.free(unsafe.Pointer(keyCS))
-	r := C.bpf_table_key_sscanf(mod, table.id, keyCS, keyP)
-	if r != 0 {
-		return nil, fmt.Errorf("error scanning key (%v) from string", keyStr)
-	}
-	return key, nil
-}
 
-func (table *Table) leafToBytes(leafStr string) ([]byte, error) {
-	mod := table.module.p
 	leaf_size := C.bpf_table_leaf_size_id(mod, table.id)
 	leaf := make([]byte, leaf_size)
 	leafP := unsafe.Pointer(&leaf[0])
+
 	leafCS := C.CString(leafStr)
 	defer C.free(unsafe.Pointer(leafCS))
+
 	r := C.bpf_table_leaf_sscanf(mod, table.id, leafCS, leafP)
 	if r != 0 {
 		return nil, fmt.Errorf("error scanning leaf (%v) from string", leafStr)
@@ -100,6 +89,53 @@ func (table *Table) leafToBytes(leafStr string) ([]byte, error) {
 type Entry struct {
 	Key   string
 	Value string
+}
+
+func (table *Table) KeyStrToBytes(keyStr string) ([]byte, error) {
+	mod := table.module.p
+
+	keySize := C.bpf_table_key_size_id(mod, table.id)
+	key := make([]byte, keySize)
+	keyP := unsafe.Pointer(&key[0])
+
+	keyCS := C.CString(keyStr)
+	defer C.free(unsafe.Pointer(keyCS))
+
+	r := C.bpf_table_key_sscanf(mod, table.id, keyCS, keyP)
+	if r != 0 {
+		return nil, fmt.Errorf("error scanning key (%v) from string", keyStr)
+	}
+	return key, nil
+}
+
+// KeyBytesToStr returns the given key value formatted using the bcc-table's key string printer.
+func (table *Table) KeyBytesToStr(key []byte) (string, error) {
+	keySize := len(key)
+	keyP := unsafe.Pointer(&key[0])
+
+	keyStr := make([]byte, keySize*8)
+	keyStrP := (*C.char)(unsafe.Pointer(&keyStr[0]))
+
+	if res := C.bpf_table_key_snprintf(table.module.p, table.id, keyStrP, C.size_t(len(keyStr)), keyP); res != 0 {
+		return "", fmt.Errorf("formatting table-key: %d", res)
+	}
+
+	return string(keyStr[:bytes.IndexByte(keyStr, 0)]), nil
+}
+
+// LeafBytesToStr returns the given leaf value formatted using the bcc-table's leaf string printer.
+func (table *Table) LeafBytesToStr(leaf []byte) (string, error) {
+	leafSize := len(leaf)
+	leafP := unsafe.Pointer(&leaf[0])
+
+	leafStr := make([]byte, leafSize*8)
+	leafStrP := (*C.char)(unsafe.Pointer(&leafStr[0]))
+
+	if res := C.bpf_table_leaf_snprintf(table.module.p, table.id, leafStrP, C.size_t(len(leafStr)), leafP); res != 0 {
+		return "", fmt.Errorf("formatting table-leaf: %d", res)
+	}
+
+	return string(leafStr[:bytes.IndexByte(leafStr, 0)]), nil
 }
 
 // Get takes a key and returns the value or nil, and an 'ok' style indicator.
@@ -185,60 +221,6 @@ func (table *Table) DeleteAll() error {
 	return nil
 }
 
-// Iter returns a receiver channel to iterate over all table entries.
-func (table *Table) Iter() <-chan Entry {
-	mod := table.module.p
-	ch := make(chan Entry, 128)
-	go func() {
-		defer close(ch)
-		fd := C.bpf_table_fd_id(mod, table.id)
-		key_size := C.bpf_table_key_size_id(mod, table.id)
-		leaf_size := C.bpf_table_leaf_size_id(mod, table.id)
-		key := make([]byte, key_size)
-		leaf := make([]byte, leaf_size)
-		keyP := unsafe.Pointer(&key[0])
-		leafP := unsafe.Pointer(&leaf[0])
-		alternateKeys := []byte{0xff, 0x55}
-		res := C.bpf_lookup_elem(fd, keyP, leafP)
-		// make sure the start iterator is an invalid key
-		for i := 0; i <= len(alternateKeys); i++ {
-			if res < 0 {
-				break
-			}
-			for j := range key {
-				key[j] = alternateKeys[i]
-			}
-			res = C.bpf_lookup_elem(fd, keyP, leafP)
-		}
-		if res == 0 {
-			return
-		}
-		keyStr := make([]byte, key_size*8)
-		leafStr := make([]byte, leaf_size*8)
-		keyStrP := (*C.char)(unsafe.Pointer(&keyStr[0]))
-		leafStrP := (*C.char)(unsafe.Pointer(&leafStr[0]))
-		for res = C.bpf_get_next_key(fd, keyP, keyP); res == 0; res = C.bpf_get_next_key(fd, keyP, keyP) {
-			r := C.bpf_lookup_elem(fd, keyP, leafP)
-			if r != 0 {
-				continue
-			}
-			r = C.bpf_table_key_snprintf(mod, table.id, keyStrP, C.size_t(len(keyStr)), keyP)
-			if r != 0 {
-				break
-			}
-			r = C.bpf_table_leaf_snprintf(mod, table.id, leafStrP, C.size_t(len(leafStr)), leafP)
-			if r != 0 {
-				break
-			}
-			ch <- Entry{
-				Key:   string(keyStr[:bytes.IndexByte(keyStr, 0)]),
-				Value: string(leafStr[:bytes.IndexByte(leafStr, 0)]),
-			}
-		}
-	}()
-	return ch
-}
-
 // TableIterator contains the current position for iteration over a *bcc.Table and provides methods for iteration.
 type TableIterator struct {
 	table *Table
@@ -250,8 +232,8 @@ type TableIterator struct {
 	leaf []byte
 }
 
-// IterRaw returns an iterator to list all table entries available as raw bytes.
-func (table *Table) IterRaw() *TableIterator {
+// Iter returns an iterator to list all table entries available as raw bytes.
+func (table *Table) Iter() *TableIterator {
 	fd := C.bpf_table_fd_id(table.module.p, table.id)
 
 	return &TableIterator{

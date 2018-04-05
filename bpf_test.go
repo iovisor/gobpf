@@ -91,24 +91,19 @@ func TestBCCIterTable(t *testing.T) {
 		t.Fatalf("table.Set failed: %v", err)
 	}
 
-	resIter := make(map[int32]int32)
-	for entry := range table.Iter() {
-		k, err := strconv.ParseInt(entry.Key[2:], 16, 32)
-		if err != nil {
-			t.Fatalf("table.Iter failed: non-number key-str: %v", err)
-		}
-		v, err := strconv.ParseInt(entry.Value[2:], 16, 32)
-		if err != nil {
-			t.Fatalf("table.Iter failed: non-number value-str: %v", err)
-		}
-		resIter[int32(k)] = int32(v)
-	}
-
 	hostEndian := bcc.GetHostByteOrder()
-	resIterRaw := make(map[int32]int32)
-	iter := table.IterRaw()
+	resIter := make(map[int32]int32)
+	iter := table.Iter()
 	for iter.Next() {
 		key, leaf := iter.Key(), iter.Leaf()
+		keyStr, err := table.KeyBytesToStr(key)
+		if err != nil {
+			t.Fatalf("table.Iter/KeyBytesToStr failed: cannot print value: %v", err)
+		}
+		leafStr, err := table.LeafBytesToStr(leaf)
+		if err != nil {
+			t.Fatalf("table.Iter/LeafBytesToStr failed: cannot print value: %v", err)
+		}
 
 		var k, v int32
 		if err := binary.Read(bytes.NewBuffer(key), hostEndian, &k); err != nil {
@@ -117,7 +112,21 @@ func TestBCCIterTable(t *testing.T) {
 		if err := binary.Read(bytes.NewBuffer(leaf), hostEndian, &v); err != nil {
 			t.Fatalf("table.Iter failed: cannot decode value: %v", err)
 		}
-		resIterRaw[k] = v
+
+		resIter[k] = v
+
+		kS, err := strconv.ParseInt(keyStr[2:], 16, 32)
+		if err != nil {
+			t.Fatalf("table.Iter failed: non-number key: %v", err)
+		}
+		vS, err := strconv.ParseInt(leafStr[2:], 16, 32)
+		if err != nil {
+			t.Fatalf("table.Iter failed: non-number value: %v", err)
+		}
+
+		if int32(kS) != k || int32(vS) != v {
+			t.Errorf("table.iter.Values() inconsistent with string values: (%v, %v) vs (%v, %v)", k, v, kS, vS)
+		}
 	}
 
 	if iter.Err() != nil {
@@ -128,18 +137,10 @@ func TestBCCIterTable(t *testing.T) {
 		t.Fatalf("expected 2 entries in Iter table, not %d", count)
 	}
 
-	if count := len(resIterRaw); count != 2 {
-		t.Fatalf("expected 2 entries in Iter table, not %d", count)
-	}
-
 	for _, te := range [][]int32{{1, 11}, {2, 22}} {
-		resI := resIter[te[0]]
-		resR := resIterRaw[te[0]]
-		if resI != te[1] {
-			t.Fatalf("expected entry %d in Iter table to contain %d, but got %d", te[0], te[1], resI)
-		}
-		if resR != te[1] {
-			t.Fatalf("expected entry %d in Iter table to contain %d, but got %d", te[0], te[1], resR)
+		res := resIter[te[0]]
+		if res != te[1] {
+			t.Fatalf("expected entry %d in Iter table to contain %d, but got %d", te[0], te[1], res)
 		}
 	}
 }
@@ -158,7 +159,7 @@ func TestBCCTableDeleteAll(t *testing.T) {
 		t.Fatalf("table.Set failed: %v", err)
 	}
 	count := 0
-	for _ = range table.Iter() {
+	for it := table.Iter(); it.Next(); {
 		count++
 	}
 	if count != 2 {
@@ -168,7 +169,7 @@ func TestBCCTableDeleteAll(t *testing.T) {
 		t.Fatalf("table.DeleteAll failed: %v", err)
 	}
 	count = 0
-	for _ = range table.Iter() {
+	for it := table.Iter(); it.Next(); {
 		count++
 	}
 	if count != 0 {
