@@ -289,6 +289,9 @@ func (b *Module) EnableTracepoint(secName string) error {
 	progFd := prog.fd
 
 	tracepointGroup := strings.SplitN(secName, "/", 3)
+	if len(tracepointGroup) != 3 {
+		return fmt.Errorf("invalid section name %q, expected tracepoint/category/name", secName)
+	}
 	category := tracepointGroup[1]
 	name := tracepointGroup[2]
 
