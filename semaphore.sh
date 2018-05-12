@@ -10,8 +10,8 @@
 set -eux
 set -o pipefail
 
-readonly kernel_versions=("4.4.114" "4.9.79" "4.14.16")
-readonly rkt_version="1.29.0"
+readonly kernel_versions=("4.4.129" "4.9.96" "4.14.37")
+readonly rkt_version="1.30.0"
 
 if [[ ! -f "./rkt/rkt" ]] \
   || [[ ! "$(./rkt/rkt version | awk '/rkt Version/{print $3}')" == "${rkt_version}" ]]; then
