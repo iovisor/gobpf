@@ -174,6 +174,7 @@ func NewModuleFromReader(fileReader io.ReaderAt) *Module {
 }
 
 var kprobeIDNotExist error = errors.New("kprobe id file doesn't exist")
+var uprobeIDNotExist error = errors.New("uprobe id file doesn't exist")
 
 func writeKprobeEvent(probeType, eventName, funcName, maxactiveStr string) (int, error) {
 	kprobeEventsFileName := "/sys/kernel/debug/tracing/kprobe_events"
@@ -203,6 +204,36 @@ func writeKprobeEvent(probeType, eventName, funcName, maxactiveStr string) (int,
 	}
 
 	return kprobeId, nil
+}
+
+func writeUprobeEvent(probeType, eventName, location string) (int, error) {
+	uprobeEventsFileName := "/sys/kernel/debug/tracing/uprobe_events"
+	f, err := os.OpenFile(uprobeEventsFileName, os.O_APPEND|os.O_WRONLY, 0666)
+	if err != nil {
+		return -1, fmt.Errorf("cannot open uprobe_events: %v", err)
+	}
+	defer f.Close()
+
+	cmd := fmt.Sprintf("%s:%s %s\n", probeType, eventName, location)
+	if _, err = f.WriteString(cmd); err != nil {
+		return -1, fmt.Errorf("cannot write %q to uprobe_events: %v", cmd, err)
+	}
+
+	uprobeIdFile := fmt.Sprintf("/sys/kernel/debug/tracing/events/uprobes/%s/id", eventName)
+	uprobeIdBytes, err := ioutil.ReadFile(uprobeIdFile)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return -1, uprobeIDNotExist
+		}
+		return -1, fmt.Errorf("cannot read uprobe id: %v", err)
+	}
+
+	uprobeId, err := strconv.Atoi(strings.TrimSpace(string(uprobeIdBytes)))
+	if err != nil {
+		return -1, fmt.Errorf("invalid uprobe id: %v", err)
+	}
+
+	return uprobeId, nil
 }
 
 func perfEventOpenTracepoint(id int, progFd int) (int, error) {
@@ -263,6 +294,32 @@ func (b *Module) EnableKprobe(secName string, maxactive int) error {
 	}
 
 	probe.efd, err = perfEventOpenTracepoint(kprobeId, progFd)
+	return err
+}
+
+func (b *Module) EnableUprobe(secName string, location string) error {
+	var probeType, funcName string
+	isUretprobe := strings.HasPrefix(secName, "uretprobe/")
+	probe, ok := b.probes[secName]
+	if !ok {
+		return fmt.Errorf("no such uprobe %q", secName)
+	}
+	progFd := probe.fd
+	if isUretprobe {
+		probeType = "r"
+		funcName = strings.TrimPrefix(secName, "uretprobe/")
+	} else {
+		probeType = "p"
+		funcName = strings.TrimPrefix(secName, "uprobe/")
+	}
+	eventName := probeType + funcName
+
+	uprobeId, err := writeUprobeEvent(probeType, eventName, location)
+	if err != nil {
+		return err
+	}
+
+	probe.efd, err = perfEventOpenTracepoint(uprobeId, progFd)
 	return err
 }
 

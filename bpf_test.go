@@ -197,6 +197,8 @@ func checkProbes(t *testing.T, b *elf.Module) {
 	var expectedProbes = []string{
 		"kprobe/dummy",
 		"kretprobe/dummy",
+		"uprobe/dummy",
+		"uretprobe/dummy",
 	}
 
 	var probes []*elf.Kprobe
