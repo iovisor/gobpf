@@ -90,6 +90,11 @@ int bpf_detach_socket(int sock, int fd)
 */
 import "C"
 
+const (
+	kprobeEventsFileName = "/sys/kernel/debug/tracing/kprobe_events"
+	uprobeEventsFileName = "/sys/kernel/debug/tracing/uprobe_events"
+)
+
 type Module struct {
 	fileName   string
 	fileReader io.ReaderAt
@@ -177,7 +182,6 @@ var kprobeIDNotExist error = errors.New("kprobe id file doesn't exist")
 var uprobeIDNotExist error = errors.New("uprobe id file doesn't exist")
 
 func writeKprobeEvent(probeType, eventName, funcName, maxactiveStr string) (int, error) {
-	kprobeEventsFileName := "/sys/kernel/debug/tracing/kprobe_events"
 	f, err := os.OpenFile(kprobeEventsFileName, os.O_APPEND|os.O_WRONLY, 0666)
 	if err != nil {
 		return -1, fmt.Errorf("cannot open kprobe_events: %v", err)
@@ -207,7 +211,6 @@ func writeKprobeEvent(probeType, eventName, funcName, maxactiveStr string) (int,
 }
 
 func writeUprobeEvent(probeType, eventName, location string) (int, error) {
-	uprobeEventsFileName := "/sys/kernel/debug/tracing/uprobe_events"
 	f, err := os.OpenFile(uprobeEventsFileName, os.O_APPEND|os.O_WRONLY, 0666)
 	if err != nil {
 		return -1, fmt.Errorf("cannot open uprobe_events: %v", err)
@@ -496,11 +499,10 @@ func (kp *Kprobe) Fd() int {
 	return kp.fd
 }
 
-func disableKprobe(eventName string) error {
-	kprobeEventsFileName := "/sys/kernel/debug/tracing/kprobe_events"
-	f, err := os.OpenFile(kprobeEventsFileName, os.O_APPEND|os.O_WRONLY, 0)
+func disableProbe(eventName, probeEventsFileName string) error {
+	f, err := os.OpenFile(probeEventsFileName, os.O_APPEND|os.O_WRONLY, 0)
 	if err != nil {
-		return fmt.Errorf("cannot open kprobe_events: %v", err)
+		return fmt.Errorf("cannot open probe_events: %v", err)
 	}
 	defer f.Close()
 	cmd := fmt.Sprintf("-:%s\n", eventName)
@@ -513,7 +515,7 @@ func disableKprobe(eventName string) error {
 			// probe already has been cleared by the first.
 			return nil
 		} else {
-			return fmt.Errorf("cannot write %q to kprobe_events: %v", cmd, err)
+			return fmt.Errorf("cannot write %q to probe_events: %v", cmd, err)
 		}
 	}
 	return nil
@@ -528,7 +530,6 @@ func (sp *SchedProgram) Fd() int {
 }
 
 func (b *Module) closeProbes() error {
-	var funcName string
 	for _, probe := range b.probes {
 		if probe.efd != -1 {
 			if err := syscall.Close(probe.efd); err != nil {
@@ -540,16 +541,25 @@ func (b *Module) closeProbes() error {
 			return fmt.Errorf("error closing probe fd: %v", err)
 		}
 		name := probe.Name
-		isKretprobe := strings.HasPrefix(name, "kretprobe/")
-		var err error
-		if isKretprobe {
-			funcName = strings.TrimPrefix(name, "kretprobe/")
-			err = disableKprobe("r" + funcName)
-		} else {
-			funcName = strings.TrimPrefix(name, "kprobe/")
-			err = disableKprobe("p" + funcName)
+
+		probeTypePrefix := "p"
+		if strings.HasPrefix(name, "kretprobe/") || strings.HasPrefix(name, "uretprobe/") {
+			probeTypePrefix = "r"
 		}
-		if err != nil {
+
+		probeEventsFileName := kprobeEventsFileName
+		if strings.HasPrefix(name, "uprobe/") || strings.HasPrefix(name, "uretprobe/") {
+			probeEventsFileName = uprobeEventsFileName
+		}
+
+		var funcName string
+		parts := strings.SplitAfterN(name, "/", 2)
+		if len(parts) == 2 {
+			funcName = parts[1]
+		} else {
+			funcName = parts[0]
+		}
+		if err := disableProbe(probeTypePrefix + funcName, probeEventsFileName); err != nil {
 			return fmt.Errorf("error clearing probe: %v", err)
 		}
 	}
