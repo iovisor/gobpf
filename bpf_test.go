@@ -425,8 +425,8 @@ func checkProgTestRun(t *testing.T, b *elf.Module) {
 	if err != nil {
 		t.Fatalf("bpf_prog_test_run failed: %v", err)
 	}
-	if returnValue != 123 {
-		t.Fatalf("expected return value 123, got %d", returnValue)
+	if returnValue != 1 {
+		t.Fatalf("expected return value 1, got %d", returnValue)
 	}
 }
 
