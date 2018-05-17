@@ -25,6 +25,7 @@ import (
 	"io"
 	"io/ioutil"
 	"os"
+	"regexp"
 	"strconv"
 	"strings"
 	"syscall"
@@ -98,6 +99,7 @@ type Module struct {
 	log                []byte
 	maps               map[string]*Map
 	probes             map[string]*Kprobe
+	uprobes            map[string]*Uprobe
 	cgroupPrograms     map[string]*CgroupProgram
 	socketFilters      map[string]*SocketFilter
 	tracepointPrograms map[string]*TracepointProgram
@@ -111,6 +113,13 @@ type Kprobe struct {
 	insns *C.struct_bpf_insn
 	fd    int
 	efd   int
+}
+
+type Uprobe struct {
+	Name  string
+	insns *C.struct_bpf_insn
+	fd    int
+	efds  map[string]int
 }
 
 type AttachType int
@@ -153,6 +162,7 @@ type SchedProgram struct {
 func newModule() *Module {
 	return &Module{
 		probes:             make(map[string]*Kprobe),
+		uprobes:            make(map[string]*Uprobe),
 		cgroupPrograms:     make(map[string]*CgroupProgram),
 		socketFilters:      make(map[string]*SocketFilter),
 		tracepointPrograms: make(map[string]*TracepointProgram),
@@ -203,6 +213,34 @@ func writeKprobeEvent(probeType, eventName, funcName, maxactiveStr string) (int,
 	}
 
 	return kprobeId, nil
+}
+
+func writeUprobeEvent(probeType, eventName, path string, offset uint64) (int, error) {
+	uprobeEventsFileName := "/sys/kernel/debug/tracing/uprobe_events"
+	f, err := os.OpenFile(uprobeEventsFileName, os.O_APPEND|os.O_WRONLY, 0666)
+	if err != nil {
+		return -1, fmt.Errorf("cannot open uprobe_events: %v", err)
+	}
+	defer f.Close()
+
+	cmd := fmt.Sprintf("%s:%s %s:%#x\n", probeType, eventName, path, offset)
+
+	if _, err = f.WriteString(cmd); err != nil {
+		return -1, fmt.Errorf("cannot write %q to uprobe_events: %v", cmd, err)
+	}
+
+	uprobeIdFile := fmt.Sprintf("/sys/kernel/debug/tracing/events/uprobes/%s/id", eventName)
+	uprobeIdBytes, err := ioutil.ReadFile(uprobeIdFile)
+	if err != nil {
+		return -1, fmt.Errorf("cannot read kprobe id: %v", err)
+	}
+
+	uprobeId, err := strconv.Atoi(strings.TrimSpace(string(uprobeIdBytes)))
+	if err != nil {
+		return -1, fmt.Errorf("invalid uprobe id: %v", err)
+	}
+
+	return uprobeId, nil
 }
 
 func perfEventOpenTracepoint(id int, progFd int) (int, error) {
@@ -360,6 +398,43 @@ func (p *CgroupProgram) Fd() int {
 	return p.fd
 }
 
+var safeEventRegexp = regexp.MustCompile("[^a-zA-Z0-9]")
+
+func safeEventName(event string) string {
+	return safeEventRegexp.ReplaceAllString(event, "_")
+}
+
+// AttachUprobe attaches the uprobe's BPF script to the program or library
+// at the given path and offset.
+func AttachUprobe(uprobe *Uprobe, path string, offset uint64) error {
+	var probeType string
+	if strings.HasPrefix(uprobe.Name, "uretprobe/") {
+		probeType = "r"
+	} else {
+		probeType = "p"
+	}
+	eventName := fmt.Sprintf("%s__%s_%x_gobpf_%d",
+		probeType, safeEventName(path), offset, os.Getpid())
+
+	if _, ok := uprobe.efds[eventName]; ok {
+		return fmt.Errorf("uprobe already attached")
+	}
+
+	uprobeID, err := writeUprobeEvent(probeType, eventName, path, offset)
+	if err != nil {
+		return err
+	}
+
+	efd, err := perfEventOpenTracepoint(uprobeID, uprobe.fd)
+	if err != nil {
+		return err
+	}
+
+	uprobe.efds[eventName] = efd
+
+	return nil
+}
+
 func AttachCgroupProgram(cgroupProg *CgroupProgram, cgroupPath string, attachType AttachType) error {
 	f, err := os.Open(cgroupPath)
 	if err != nil {
@@ -462,6 +537,28 @@ func disableKprobe(eventName string) error {
 	return nil
 }
 
+func disableUprobe(eventName string) error {
+	uprobeEventsFileName := "/sys/kernel/debug/tracing/uprobe_events"
+	f, err := os.OpenFile(uprobeEventsFileName, os.O_APPEND|os.O_WRONLY, 0)
+	if err != nil {
+		return fmt.Errorf("cannot open uprobe_events: %v", err)
+	}
+	defer f.Close()
+	cmd := fmt.Sprintf("-:%s\n", eventName)
+	if _, err = f.WriteString(cmd); err != nil {
+		return fmt.Errorf("cannot write %q to kprobe_events: %v", cmd, err)
+	}
+	return nil
+}
+
+func (b *Module) Uprobe(name string) *Uprobe {
+	return b.uprobes[name]
+}
+
+func (up *Uprobe) Fd() int {
+	return up.fd
+}
+
 func (b *Module) SchedProgram(name string) *SchedProgram {
 	return b.schedPrograms[name]
 }
@@ -494,6 +591,24 @@ func (b *Module) closeProbes() error {
 		}
 		if err != nil {
 			return fmt.Errorf("error clearing probe: %v", err)
+		}
+	}
+	return nil
+}
+
+func (b *Module) closeUprobes() error {
+	for _, probe := range b.uprobes {
+		for eventName, efd := range probe.efds {
+			if err := syscall.Close(efd); err != nil {
+				return fmt.Errorf("error closing uprobe's event fd: %v", err)
+			}
+			if err := disableUprobe(eventName); err != nil {
+				return fmt.Errorf("error clearing probe: %v", err)
+			}
+		}
+
+		if err := syscall.Close(probe.fd); err != nil {
+			return fmt.Errorf("error closing uprobe fd: %v", err)
 		}
 	}
 	return nil
@@ -603,6 +718,9 @@ func (b *Module) CloseExt(options map[string]CloseOptions) error {
 		return err
 	}
 	if err := b.closeProbes(); err != nil {
+		return err
+	}
+	if err := b.closeUprobes(); err != nil {
 		return err
 	}
 	if err := b.closeCgroupPrograms(); err != nil {
