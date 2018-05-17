@@ -34,6 +34,7 @@ sections (`SEC("...")`). Currently supported are:
 * `maps/...`
 * `socket...`
 * `tracepoint...`
+* `uprobe/...`
 
 Map definitions must correspond to `bpf_map_def` from [elf.go](https://github.com/iovisor/gobpf/blob/master/elf/elf.go)
 Otherwise you will encounter an error like `only one map with size 280 bytes allowed per section (check bpf_map_def)`.

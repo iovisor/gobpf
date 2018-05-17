@@ -90,6 +90,11 @@ int bpf_detach_socket(int sock, int fd)
 */
 import "C"
 
+const (
+	kprobeEventsFileName = "/sys/kernel/debug/tracing/kprobe_events"
+	uprobeEventsFileName = "/sys/kernel/debug/tracing/uprobe_events"
+)
+
 type Module struct {
 	fileName   string
 	fileReader io.ReaderAt
@@ -174,9 +179,9 @@ func NewModuleFromReader(fileReader io.ReaderAt) *Module {
 }
 
 var kprobeIDNotExist error = errors.New("kprobe id file doesn't exist")
+var uprobeIDNotExist error = errors.New("uprobe id file doesn't exist")
 
 func writeKprobeEvent(probeType, eventName, funcName, maxactiveStr string) (int, error) {
-	kprobeEventsFileName := "/sys/kernel/debug/tracing/kprobe_events"
 	f, err := os.OpenFile(kprobeEventsFileName, os.O_APPEND|os.O_WRONLY, 0666)
 	if err != nil {
 		return -1, fmt.Errorf("cannot open kprobe_events: %v", err)
@@ -203,6 +208,35 @@ func writeKprobeEvent(probeType, eventName, funcName, maxactiveStr string) (int,
 	}
 
 	return kprobeId, nil
+}
+
+func writeUprobeEvent(probeType, eventName, location string) (int, error) {
+	f, err := os.OpenFile(uprobeEventsFileName, os.O_APPEND|os.O_WRONLY, 0666)
+	if err != nil {
+		return -1, fmt.Errorf("cannot open uprobe_events: %v", err)
+	}
+	defer f.Close()
+
+	cmd := fmt.Sprintf("%s:%s %s\n", probeType, eventName, location)
+	if _, err = f.WriteString(cmd); err != nil {
+		return -1, fmt.Errorf("cannot write %q to uprobe_events: %v", cmd, err)
+	}
+
+	uprobeIdFile := fmt.Sprintf("/sys/kernel/debug/tracing/events/uprobes/%s/id", eventName)
+	uprobeIdBytes, err := ioutil.ReadFile(uprobeIdFile)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return -1, uprobeIDNotExist
+		}
+		return -1, fmt.Errorf("cannot read uprobe id: %v", err)
+	}
+
+	uprobeId, err := strconv.Atoi(strings.TrimSpace(string(uprobeIdBytes)))
+	if err != nil {
+		return -1, fmt.Errorf("invalid uprobe id: %v", err)
+	}
+
+	return uprobeId, nil
 }
 
 func perfEventOpenTracepoint(id int, progFd int) (int, error) {
@@ -263,6 +297,32 @@ func (b *Module) EnableKprobe(secName string, maxactive int) error {
 	}
 
 	probe.efd, err = perfEventOpenTracepoint(kprobeId, progFd)
+	return err
+}
+
+func (b *Module) EnableUprobe(secName string, location string) error {
+	var probeType, funcName string
+	isUretprobe := strings.HasPrefix(secName, "uretprobe/")
+	probe, ok := b.probes[secName]
+	if !ok {
+		return fmt.Errorf("no such uprobe %q", secName)
+	}
+	progFd := probe.fd
+	if isUretprobe {
+		probeType = "r"
+		funcName = strings.TrimPrefix(secName, "uretprobe/")
+	} else {
+		probeType = "p"
+		funcName = strings.TrimPrefix(secName, "uprobe/")
+	}
+	eventName := probeType + funcName
+
+	uprobeId, err := writeUprobeEvent(probeType, eventName, location)
+	if err != nil {
+		return err
+	}
+
+	probe.efd, err = perfEventOpenTracepoint(uprobeId, progFd)
 	return err
 }
 
@@ -439,11 +499,10 @@ func (kp *Kprobe) Fd() int {
 	return kp.fd
 }
 
-func disableKprobe(eventName string) error {
-	kprobeEventsFileName := "/sys/kernel/debug/tracing/kprobe_events"
-	f, err := os.OpenFile(kprobeEventsFileName, os.O_APPEND|os.O_WRONLY, 0)
+func disableProbe(eventName, probeEventsFileName string) error {
+	f, err := os.OpenFile(probeEventsFileName, os.O_APPEND|os.O_WRONLY, 0)
 	if err != nil {
-		return fmt.Errorf("cannot open kprobe_events: %v", err)
+		return fmt.Errorf("cannot open probe_events: %v", err)
 	}
 	defer f.Close()
 	cmd := fmt.Sprintf("-:%s\n", eventName)
@@ -456,7 +515,7 @@ func disableKprobe(eventName string) error {
 			// probe already has been cleared by the first.
 			return nil
 		} else {
-			return fmt.Errorf("cannot write %q to kprobe_events: %v", cmd, err)
+			return fmt.Errorf("cannot write %q to probe_events: %v", cmd, err)
 		}
 	}
 	return nil
@@ -471,7 +530,6 @@ func (sp *SchedProgram) Fd() int {
 }
 
 func (b *Module) closeProbes() error {
-	var funcName string
 	for _, probe := range b.probes {
 		if probe.efd != -1 {
 			if err := syscall.Close(probe.efd); err != nil {
@@ -483,16 +541,25 @@ func (b *Module) closeProbes() error {
 			return fmt.Errorf("error closing probe fd: %v", err)
 		}
 		name := probe.Name
-		isKretprobe := strings.HasPrefix(name, "kretprobe/")
-		var err error
-		if isKretprobe {
-			funcName = strings.TrimPrefix(name, "kretprobe/")
-			err = disableKprobe("r" + funcName)
-		} else {
-			funcName = strings.TrimPrefix(name, "kprobe/")
-			err = disableKprobe("p" + funcName)
+
+		probeTypePrefix := "p"
+		if strings.HasPrefix(name, "kretprobe/") || strings.HasPrefix(name, "uretprobe/") {
+			probeTypePrefix = "r"
 		}
-		if err != nil {
+
+		probeEventsFileName := kprobeEventsFileName
+		if strings.HasPrefix(name, "uprobe/") || strings.HasPrefix(name, "uretprobe/") {
+			probeEventsFileName = uprobeEventsFileName
+		}
+
+		var funcName string
+		parts := strings.SplitAfterN(name, "/", 2)
+		if len(parts) == 2 {
+			funcName = parts[1]
+		} else {
+			funcName = parts[0]
+		}
+		if err := disableProbe(probeTypePrefix + funcName, probeEventsFileName); err != nil {
 			return fmt.Errorf("error clearing probe: %v", err)
 		}
 	}
