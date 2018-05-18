@@ -368,6 +368,18 @@ func (b *Module) EnableKprobes(maxactive int) error {
 	return nil
 }
 
+// IterUprobes returns a channel that emits the uprobes included in the module.
+func (b *Module) IterUprobes() <-chan *Uprobe {
+	ch := make(chan *Uprobe)
+	go func() {
+		for name := range b.uprobes {
+			ch <- b.uprobes[name]
+		}
+		close(ch)
+	}()
+	return ch
+}
+
 func (b *Module) IterCgroupProgram() <-chan *CgroupProgram {
 	ch := make(chan *CgroupProgram)
 	go func() {
