@@ -232,7 +232,7 @@ func writeUprobeEvent(probeType, eventName, path string, offset uint64) (int, er
 	uprobeIdFile := fmt.Sprintf("/sys/kernel/debug/tracing/events/uprobes/%s/id", eventName)
 	uprobeIdBytes, err := ioutil.ReadFile(uprobeIdFile)
 	if err != nil {
-		return -1, fmt.Errorf("cannot read kprobe id: %v", err)
+		return -1, fmt.Errorf("cannot read uprobe id: %v", err)
 	}
 
 	uprobeId, err := strconv.Atoi(strings.TrimSpace(string(uprobeIdBytes)))
@@ -546,7 +546,7 @@ func disableUprobe(eventName string) error {
 	defer f.Close()
 	cmd := fmt.Sprintf("-:%s\n", eventName)
 	if _, err = f.WriteString(cmd); err != nil {
-		return fmt.Errorf("cannot write %q to kprobe_events: %v", cmd, err)
+		return fmt.Errorf("cannot write %q to uprobe_events: %v", cmd, err)
 	}
 	return nil
 }
