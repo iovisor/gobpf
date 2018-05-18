@@ -92,6 +92,18 @@ int kretprobe__dummy(struct pt_regs *ctx)
 	return 0;
 }
 
+SEC("uprobe/dummy")
+int uprobe__dummy(struct pt_regs *ctx)
+{
+	return 0;
+}
+
+SEC("uretprobe/dummy")
+int uretprobe__dummy(struct pt_regs *ctx)
+{
+	return 0;
+}
+
 #if KERNEL_VERSION_GTE(410)
 SEC("cgroup/skb")
 int cgroup_skb__dummy(struct __sk_buff *skb)
