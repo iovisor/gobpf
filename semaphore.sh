@@ -28,7 +28,7 @@ fi
 sudo ./rkt/rkt image fetch --insecure-options=image "coreos.com/rkt/stage1-kvm:${rkt_version}"
 
 for kernel_version in "${kernel_versions[@]}"; do
-  kernel_api_header_dir="/lib/modules/${kernel_version}-kinvolk-v1/include"
+  kernel_api_header_dir="/lib/modules/${kernel_version}-kinvolk-v1/include:/lib/modules/${kernel_version}-kinvolk-v1/source/include/arch/x86/include"
   rm -f ./rkt-uuid
   sudo timeout --foreground --kill-after=10 5m \
     ./rkt/rkt \
@@ -38,7 +38,7 @@ for kernel_version in "${kernel_versions[@]}"; do
     --dns=8.8.8.8 \
     --stage1-name="kinvolk.io/aci/rkt/stage1-kvm:${rkt_version},kernelversion=${kernel_version}" \
     --volume=gobpf,kind=host,source="$PWD" \
-    docker://schu/gobpf-ci:d54e7abfe980c7d59ca6929f4f3552ea891260b0 \
+    docker://schu/gobpf-ci:cd3074f04436b6214060120ea11223335f22aad0 \
     --memory=1024M \
     --mount=volume=gobpf,target=/go/src/github.com/iovisor/gobpf \
     --environment=GOPATH=/go \
