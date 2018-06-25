@@ -209,28 +209,32 @@ func (bpf *Module) attachProbe(evName string, attachType uint32, fnName string, 
 
 	evNameCS := C.CString(evName)
 	fnNameCS := C.CString(fnName)
-	res, err := C.bpf_attach_kprobe(C.int(fd), attachType, evNameCS, fnNameCS, -1, 0, -1, nil, nil)
+	res, err := C.bpf_attach_kprobe(C.int(fd), attachType, evNameCS, fnNameCS, 0)
 	C.free(unsafe.Pointer(evNameCS))
 	C.free(unsafe.Pointer(fnNameCS))
 
-	if res == nil {
+	if res < 0 {
 		return fmt.Errorf("failed to attach BPF kprobe: %v", err)
 	}
-	bpf.kprobes[evName] = res
+
+	bpf.kprobes[evName] = unsafe.Pointer(uintptr(res))
+
 	return nil
 }
 
 func (bpf *Module) attachUProbe(evName string, attachType uint32, path string, addr uint64, fd, pid int) error {
 	evNameCS := C.CString(evName)
 	binaryPathCS := C.CString(path)
-	res, err := C.bpf_attach_uprobe(C.int(fd), attachType, evNameCS, binaryPathCS, (C.uint64_t)(addr), (C.pid_t)(pid), 0, -1, nil, nil)
+	res, err := C.bpf_attach_uprobe(C.int(fd), attachType, evNameCS, binaryPathCS, (C.uint64_t)(addr), (C.pid_t)(pid))
 	C.free(unsafe.Pointer(evNameCS))
 	C.free(unsafe.Pointer(binaryPathCS))
 
-	if res == nil {
+	if res < 0 {
 		return fmt.Errorf("failed to attach BPF uprobe: %v", err)
 	}
-	bpf.uprobes[evName] = res
+
+	bpf.uprobes[evName] = unsafe.Pointer(uintptr(res))
+
 	return nil
 }
 
@@ -263,15 +267,17 @@ func (bpf *Module) AttachTracepoint(name string, fd int) error {
 	tpCategoryCS := C.CString(parts[0])
 	tpNameCS := C.CString(parts[1])
 
-	res, err := C.bpf_attach_tracepoint(C.int(fd), tpCategoryCS, tpNameCS, -1, 0, -1, nil, nil)
+	res, err := C.bpf_attach_tracepoint(C.int(fd), tpCategoryCS, tpNameCS)
 
 	C.free(unsafe.Pointer(tpCategoryCS))
 	C.free(unsafe.Pointer(tpNameCS))
 
-	if res == nil {
+	if res < 0 {
 		return fmt.Errorf("failed to attach BPF tracepoint: %v", err)
 	}
-	bpf.tracepoints[name] = res
+
+	bpf.tracepoints[name] = unsafe.Pointer(uintptr(res))
+
 	return nil
 }
 
