@@ -19,6 +19,7 @@ package bpf
 import (
 	"bytes"
 	"encoding/binary"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -76,6 +77,24 @@ func TestModuleLoadBCC(t *testing.T) {
 	}
 }
 
+func fillTable1(b *bcc.Module) (*bcc.Table, error) {
+	table := bcc.NewTable(b.TableId("table1"), b)
+	key, _ := table.KeyStrToBytes("1")
+	leaf, _ := table.LeafStrToBytes("11")
+	if err := table.Set(key, leaf); err != nil {
+		return nil, fmt.Errorf("table.Set key 1 failed: %v", err)
+	}
+
+	key, leaf = make([]byte, 4), make([]byte, 4)
+	bcc.GetHostByteOrder().PutUint32(key, 2)
+	bcc.GetHostByteOrder().PutUint32(leaf, 22)
+	if err := table.Set(key, leaf); err != nil {
+		return nil, fmt.Errorf("table.Set key 2 failed: %v", err)
+	}
+
+	return table, nil
+}
+
 func TestBCCIterTable(t *testing.T) {
 	b := bcc.NewModule(simple1, []string{})
 	if b == nil {
@@ -83,12 +102,9 @@ func TestBCCIterTable(t *testing.T) {
 	}
 	defer b.Close()
 
-	table := bcc.NewTable(b.TableId("table1"), b)
-	if err := table.Set("1", "11"); err != nil {
-		t.Fatalf("table.Set failed: %v", err)
-	}
-	if err := table.Set("2", "22"); err != nil {
-		t.Fatalf("table.Set failed: %v", err)
+	table, err := fillTable1(b)
+	if err != nil {
+		t.Fatalf("fill table1 failed: %v", err)
 	}
 
 	hostEndian := bcc.GetHostByteOrder()
@@ -151,13 +167,12 @@ func TestBCCTableDeleteAll(t *testing.T) {
 		t.Fatal("prog is nil")
 	}
 	defer b.Close()
-	table := bcc.NewTable(b.TableId("table1"), b)
-	if err := table.Set("1", "11"); err != nil {
-		t.Fatalf("table.Set failed: %v", err)
+
+	table, err := fillTable1(b)
+	if err != nil {
+		t.Fatalf("fill table1 failed: %v", err)
 	}
-	if err := table.Set("2", "22"); err != nil {
-		t.Fatalf("table.Set failed: %v", err)
-	}
+
 	count := 0
 	for it := table.Iter(); it.Next(); {
 		count++
