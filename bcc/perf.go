@@ -15,11 +15,11 @@
 package bcc
 
 import (
-	"encoding/binary"
 	"fmt"
 	"sync"
 	"unsafe"
 
+	"github.com/iovisor/gobpf/bcc/bccencoding"
 	"github.com/iovisor/gobpf/pkg/cpuonline"
 )
 
@@ -48,23 +48,9 @@ type callbackData struct {
 
 const BPF_PERF_READER_PAGE_CNT = 8
 
-var byteOrder binary.ByteOrder
 var callbackRegister = make(map[uint64]*callbackData)
 var callbackIndex uint64
 var mu sync.Mutex
-
-// In lack of binary.HostEndian ...
-func init() {
-	var i int32 = 0x01020304
-	u := unsafe.Pointer(&i)
-	pb := (*byte)(u)
-	b := *pb
-	if b == 0x04 {
-		byteOrder = binary.LittleEndian
-	} else {
-		byteOrder = binary.BigEndian
-	}
-}
 
 func registerCallback(data *callbackData) uint64 {
 	mu.Lock()
@@ -137,7 +123,7 @@ func InitPerfMap(table *Table, receiverChan chan []byte) (*PerfMap, error) {
 
 		readers = append(readers, (*C.struct_perf_reader)(reader))
 
-		byteOrder.PutUint32(leaf, uint32(perfFd))
+		bccencoding.ByteOrder.PutUint32(leaf, uint32(perfFd))
 
 		r, err := C.bpf_update_elem(C.int(fd), keyP, leafP, 0)
 		if r != 0 {
