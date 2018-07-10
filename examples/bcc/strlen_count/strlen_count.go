@@ -13,14 +13,12 @@
 package main
 
 import (
-	"encoding/hex"
+	"encoding/binary"
 	"flag"
 	"fmt"
 	"os"
 	"os/signal"
 	"regexp"
-	"strconv"
-	"strings"
 
 	bpf "github.com/iovisor/gobpf/bcc"
 )
@@ -47,25 +45,6 @@ int count(struct pt_regs *ctx) {
 `
 
 var ansiEscape = regexp.MustCompile(`[[:cntrl:]]`)
-
-func decodeHexString(raw string) ([]byte, error) {
-	ret := ""
-	// split on whitespace, replace 0x66 --> 66, concatenate the results then hex decode
-	for _, c := range strings.Split(strings.Replace(raw, "0x", "", -1), " ") {
-		if c == "[" || c == "]" {
-			continue
-		}
-		if c == "0" {
-			break
-		}
-		ret = fmt.Sprintf("%s%s", ret, c)
-	}
-	return hex.DecodeString(ret)
-}
-
-func decodeHexInt(raw string) (uint64, error) {
-	return strconv.ParseUint(raw, 0, 64)
-}
 
 func main() {
 	pid := flag.Int("pid", -1, "attach to pid, default is all processes")
@@ -94,16 +73,9 @@ func main() {
 	<-sig
 
 	fmt.Printf("%10s %s\n", "COUNT", "STRING")
-	for evt := range table.Iter() {
-		k, err := decodeHexString(evt.Key)
-		if err != nil {
-			continue
-		}
-
-		v, err := decodeHexInt(evt.Value)
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "unable to decode result: %s\n", err)
-		}
-		fmt.Printf("%10d \"%s\"\n", v, ansiEscape.ReplaceAll(k, []byte{}))
+	for it := table.Iter(); it.Next(); {
+		k := ansiEscape.ReplaceAll(it.Key(), []byte{})
+		v := binary.LittleEndian.Uint64(it.Leaf())
+		fmt.Printf("%10d \"%s\"\n", v, k)
 	}
 }

@@ -11,7 +11,6 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
-	"strconv"
 
 	bpf "github.com/iovisor/gobpf/bcc"
 )
@@ -160,19 +159,9 @@ func main() {
 	<-sig
 
 	fmt.Printf("\n{IP protocol-number}: {total dropped pkts}\n")
-	for entry := range dropcnt.Iter() {
-		var key, value uint64
-		var err error
-
-		key, err = strconv.ParseUint(entry.Key, 0, 32)
-		if err != nil {
-			continue
-		}
-
-		value, err = strconv.ParseUint(entry.Value, 0, 64)
-		if err != nil {
-			continue
-		}
+	for it := dropcnt.Iter(); it.Next(); {
+		key := bpf.GetHostByteOrder().Uint32(it.Key())
+		value := bpf.GetHostByteOrder().Uint64(it.Leaf())
 
 		if value > 0 {
 			fmt.Printf("%v: %v pkts\n", key, value)
