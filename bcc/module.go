@@ -471,3 +471,21 @@ func (bpf *Module) AttachXDP(devName string, fd int) error {
 func (bpf *Module) RemoveXDP(devName string) error {
 	return bpf.attachXDP(devName, -1, 0)
 }
+
+func GetSyscallFnName(name string) string {
+	return GetSyscallPrefix() + name
+}
+
+func GetSyscallPrefix() string {
+	_, err := bccResolveName("", "sys_bpf", -1)
+	if err == nil {
+		return "sys_"
+	}
+
+	_, err = bccResolveName("", "__x64_sys_bpf", -1)
+	if err == nil {
+		return "__x64_sys_"
+	}
+
+	return "sys_"
+}
