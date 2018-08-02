@@ -35,7 +35,7 @@ sections (`SEC("...")`). Currently supported are:
 * `socket...`
 * `tracepoint...`
 
-Map definitions must correspond to `bpf_map_def` from [elf.go](https://github.com/iovisor/gobpf/blob/master/elf/elf.go)
+Map definitions must correspond to `bpf_map_def` from [the elf package](https://github.com/iovisor/gobpf/blob/master/elf/include/bpf.h)
 Otherwise you will encounter an error like `only one map with size 280 bytes allowed per section (check bpf_map_def)`.
 
 The [Cilium](https://github.com/cilium/cilium) BPF docs contain helpful info
