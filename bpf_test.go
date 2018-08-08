@@ -47,6 +47,27 @@ int func1(void *ctx) {
 }
 `
 
+var simple2 = `
+struct key {
+  int key;
+};
+struct leaf {
+  int value;
+};
+BPF_HASH(table2, struct key, struct leaf, 10);
+int func2(void *ctx) {
+	return 0;
+}
+`
+
+type key struct {
+	key uint32
+}
+
+type leaf struct {
+	value uint32
+}
+
 var kernelVersion uint32
 
 var (
@@ -158,6 +179,43 @@ func TestBCCIterTable(t *testing.T) {
 		if res != te[1] {
 			t.Fatalf("expected entry %d in Iter table to contain %d, but got %d", te[0], te[1], res)
 		}
+	}
+}
+
+func TestBCCTableSetPGetPDeleteP(t *testing.T) {
+	b := bcc.NewModule(simple2, []string{})
+	if b == nil {
+		t.Fatal("prog is nil")
+	}
+	defer b.Close()
+
+	table := bcc.NewTable(b.TableId("table2"), b)
+
+	k := &key{0}
+	l := &leaf{1}
+
+	err := table.SetP(unsafe.Pointer(k), unsafe.Pointer(l))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	p, err := table.GetP(unsafe.Pointer(k))
+	if err != nil {
+		t.Fatal(err)
+	}
+	v := (*leaf)(p)
+	if v.value != 1 {
+		t.Fatalf("expected 1, not %d", v.value)
+	}
+
+	err = table.DeleteP(unsafe.Pointer(k))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	_, err = table.GetP(unsafe.Pointer(k))
+	if !os.IsNotExist(err) {
+		t.Fatal(err)
 	}
 }
 
