@@ -546,7 +546,7 @@ func TestModuleLoadELF(t *testing.T) {
 	}
 
 	if err := bpffs.Mount(); err != nil {
-		t.Skipf("error mounting bpf fs, skipping test: %v", err)
+		t.Fatalf("error mounting bpf fs: %v", err)
 	}
 
 	b := elf.NewModule(dummyELF)
