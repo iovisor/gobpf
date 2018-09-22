@@ -104,7 +104,7 @@ func bccResolveName(module, symname string, pid int) (uint64, error) {
 	defer C.free(unsafe.Pointer(nameCS))
 
 	var addr uint64
-	addrC := C.ulong(addr)
+	addrC := C.uint64_t(addr)
 	res := C.bcc_symcache_resolve_name(cache, moduleCS, nameCS, &addrC)
 	if res < 0 {
 		return 0, fmt.Errorf("unable to locate symbol %s in module %s", symname, module)
