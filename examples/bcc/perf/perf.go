@@ -90,7 +90,9 @@ func main() {
 		os.Exit(1)
 	}
 
-	err = m.AttachKprobe("sys_fchownat", chownKprobe)
+	syscallName := bpf.GetSyscallFnName("fchownat")
+
+	err = m.AttachKprobe(syscallName, chownKprobe)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Failed to attach kprobe__sys_fchownat: %s\n", err)
 		os.Exit(1)
@@ -102,7 +104,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	err = m.AttachKretprobe("sys_fchownat", chownKretprobe)
+	err = m.AttachKretprobe(syscallName, chownKretprobe)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Failed to attach kretprobe__sys_fchownat: %s\n", err)
 		os.Exit(1)
