@@ -3,6 +3,7 @@
  */
 
 #include "../elf/include/bpf.h"
+#include "../elf/include/bpf_map.h"
 
 #define SEC(NAME) __attribute__((section(NAME), used))
 
