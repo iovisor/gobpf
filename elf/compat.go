@@ -22,7 +22,13 @@ import (
 	"runtime"
 )
 
-func GetSyscallFnName(name string, symFile string) (string, error) {
+const defaultSymFile = "/proc/kallsyms"
+
+func GetSyscallFnName(name string) (string, error) {
+    return getSyscallFnNameWithFile(name, defaultSymFile)
+}
+
+func getSyscallFnNameWithFile(name string, symFile string) (string, error) {
 	var arch string
     switch runtime.GOARCH {
         case "386": arch = "ia32"

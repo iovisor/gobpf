@@ -22,11 +22,11 @@ import (
 )
 
 func TestGetSyscallFnName(t *testing.T) {
-	fnName, err := GetSyscallFnName("open", filepath.Join("testdata", "prefix_symbols.txt"))
+    fnName, err := getSyscallFnNameWithFile("open", filepath.Join("testdata", "prefix_symbols.txt"))
 	if err != nil && fnName != "__x64_sys_open" {
 		t.Errorf("expected __x64_sys_open : %s", err)
 	}
-	fnName, err = GetSyscallFnName("open", filepath.Join("testdata", "symbols.txt"))
+	fnName, err = getSyscallFnNameWithFile("open", filepath.Join("testdata", "symbols.txt"))
 	if err != nil {
         if fnName != "SyS_open" {
             t.Errorf("expected SyS_open :%s", err)
