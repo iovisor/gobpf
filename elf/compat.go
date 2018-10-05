@@ -22,16 +22,12 @@ import (
 	"runtime"
 )
 
-func GetSyscallFnName(name string) (string, error) {
+func GetSyscallFnName(name string, symFile string) (string, error) {
 	var arch string
-	if runtime.GOARCH == "amd64" {
-		arch = "x64"
-	} else if runtime.GOARCH == "386" {
-		arch = "ia32"
-	} else {
-		// default
-		arch = "x64"
-	}
+    switch runtime.GOARCH {
+        case "386": arch = "ia32"
+        default: arch = "x64"
+    }
 
 	// We should search for new syscall function like "__x64__sys_open"
 	// Note the start of word boundary. Should return exactly one string
@@ -39,16 +35,12 @@ func GetSyscallFnName(name string) (string, error) {
 	fnRegex := regexp.MustCompile(regexStr)
 
 	// Get kernel symbols
-	syms, err := ioutil.ReadFile("/proc/kallsyms")
+	syms, err := ioutil.ReadFile(symFile)
 	if err != nil {
 		return "", err
 	}
 
 	match := fnRegex.FindAllString(string(syms), -1)
-	// This should not be possible
-	if len(match) > 1 {
-		return "", err
-	}
 
 	// If nothing found, search for old syscall function to be sure
 	if len(match) == 0 {

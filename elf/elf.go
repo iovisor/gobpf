@@ -587,7 +587,7 @@ func (b *Module) Load(parameters map[string]SectionParams) error {
 				if (strings.HasPrefix(str[1], "SyS_")) || (strings.HasPrefix(str[1], "sys_")) {
 					name := strings.TrimPrefix(str[1], "SyS_")
 					name = strings.TrimPrefix(name, "sys_")
-					syscallFnName, err := GetSyscallFnName(name)
+					syscallFnName, err := GetSyscallFnName(name, "/proc/kallsyms")
 					if err != nil {
 						return err
 					}
@@ -720,7 +720,7 @@ func (b *Module) Load(parameters map[string]SectionParams) error {
 			if (strings.HasPrefix(str[1], "SyS_")) || (strings.HasPrefix(str[1], "sys_")) {
 				name := strings.TrimPrefix(str[1], "SyS_")
 				name = strings.TrimPrefix(name, "sys_")
-				syscallFnName, err := GetSyscallFnName(name)
+				syscallFnName, err := GetSyscallFnName(name, "/proc/kallsyms")
 				if err != nil {
 					return err
 				}
