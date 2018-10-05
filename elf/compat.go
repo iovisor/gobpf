@@ -17,7 +17,6 @@
 package elf
 
 import (
-	"fmt"
 	"io/ioutil"
 	"regexp"
 	"runtime"
@@ -42,7 +41,6 @@ func GetSyscallFnName(name string) (string, error) {
 	// Get kernel symbols
 	syms, err := ioutil.ReadFile("/proc/kallsyms")
 	if err != nil {
-		fmt.Println(string(syms))
 		return "", err
 	}
 
@@ -57,7 +55,6 @@ func GetSyscallFnName(name string) (string, error) {
 		newRegexStr := `(\b[Ss]y[sS]_` + name + `\b)`
 		fnRegex = regexp.MustCompile(newRegexStr)
 		newMatch := fnRegex.FindAllString(string(syms), -1)
-		fmt.Println(newMatch)
 
 		// If we get something like 'sys_open' or 'SyS_open', return
 		// either (they have same addr)
