@@ -584,15 +584,14 @@ func (b *Module) Load(parameters map[string]SectionParams) error {
 			// If Kprobe or Kretprobe for a syscall, use correct syscall prefix in section name
 			if isKprobe || isKretprobe {
 				str := strings.Split(secName, "/")
-				if strings.HasPrefix(str[1], "SyS_") {
-					currVersion, err := CurrentKernelVersion()
-					prefixVersion, err := KernelVersionFromReleaseString("4.17")
+				if (strings.HasPrefix(str[1], "SyS_")) || (strings.HasPrefix(str[1], "sys_")) {
+					name := strings.TrimPrefix(str[1], "SyS_")
+					name = strings.TrimPrefix(name, "sys_")
+					syscallFnName, err := GetSyscallFnName(name)
 					if err != nil {
-						// Kernel versions beyond 4.17 need __x64_sys_ prefix instead of SyS_
-						if currVersion >= prefixVersion {
-							secName = strings.Replace(secName, "SyS_", "__x64_sys_", -1)
-						}
+						return err
 					}
+					secName = fmt.Sprintf("%s/%s", str[0], syscallFnName)
 				}
 			}
 
@@ -718,15 +717,14 @@ func (b *Module) Load(parameters map[string]SectionParams) error {
 		// If Kprobe or Kretprobe for a syscall, use correct syscall prefix in section name
 		if isKprobe || isKretprobe {
 			str := strings.Split(secName, "/")
-			if strings.HasPrefix(str[1], "SyS_") {
-				currKernelVer, err := CurrentKernelVersion()
-				prefixKernelVer, err := KernelVersionFromReleaseString("4.17")
+			if (strings.HasPrefix(str[1], "SyS_")) || (strings.HasPrefix(str[1], "sys_")) {
+				name := strings.TrimPrefix(str[1], "SyS_")
+				name = strings.TrimPrefix(name, "sys_")
+				syscallFnName, err := GetSyscallFnName(name)
 				if err != nil {
-					// Kernel versions beyond 4.17 need __x64_sys_ prefix instead of SyS_
-					if currKernelVer >= prefixKernelVer {
-						secName = strings.Replace(secName, "SyS_", "__x64_sys_", -1)
-					}
+					return err
 				}
+				secName = fmt.Sprintf("%s/%s", str[0], syscallFnName)
 			}
 		}
 
