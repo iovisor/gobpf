@@ -582,7 +582,7 @@ func (b *Module) Load(parameters map[string]SectionParams) error {
 			}
 
 			// If Kprobe or Kretprobe for a syscall, use correct syscall prefix in section name
-			if isKprobe || isKretprobe {
+			if b.compatProbe && (isKprobe || isKretprobe) {
 				str := strings.Split(secName, "/")
 				if (strings.HasPrefix(str[1], "SyS_")) || (strings.HasPrefix(str[1], "sys_")) {
 					name := strings.TrimPrefix(str[1], "SyS_")
@@ -714,7 +714,7 @@ func (b *Module) Load(parameters map[string]SectionParams) error {
 		}
 
 		// If Kprobe or Kretprobe for a syscall, use correct syscall prefix in section name
-		if isKprobe || isKretprobe {
+		if b.compatProbe && (isKprobe || isKretprobe) {
 			str := strings.Split(secName, "/")
 			if (strings.HasPrefix(str[1], "SyS_")) || (strings.HasPrefix(str[1], "sys_")) {
 				name := strings.TrimPrefix(str[1], "SyS_")
