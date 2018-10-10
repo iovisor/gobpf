@@ -588,10 +588,9 @@ func (b *Module) Load(parameters map[string]SectionParams) error {
 					name := strings.TrimPrefix(str[1], "SyS_")
 					name = strings.TrimPrefix(name, "sys_")
 					syscallFnName, err := GetSyscallFnName(name)
-					if err != nil {
-						return err
+					if err == nil {
+						secName = fmt.Sprintf("%s/%s", str[0], syscallFnName)
 					}
-					secName = fmt.Sprintf("%s/%s", str[0], syscallFnName)
 				}
 			}
 
@@ -721,10 +720,9 @@ func (b *Module) Load(parameters map[string]SectionParams) error {
 				name := strings.TrimPrefix(str[1], "SyS_")
 				name = strings.TrimPrefix(name, "sys_")
 				syscallFnName, err := GetSyscallFnName(name)
-				if err != nil {
-					return err
+				if err == nil {
+					secName = fmt.Sprintf("%s/%s", str[0], syscallFnName)
 				}
-				secName = fmt.Sprintf("%s/%s", str[0], syscallFnName)
 			}
 		}
 
