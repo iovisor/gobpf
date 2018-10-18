@@ -30,7 +30,7 @@ sudo ./rkt/rkt image fetch --insecure-options=image "coreos.com/rkt/stage1-kvm:$
 for kernel_version in "${kernel_versions[@]}"; do
   kernel_api_header_dir="/lib/modules/${kernel_version}-kinvolk-v1/include:/lib/modules/${kernel_version}-kinvolk-v1/source/include/arch/x86/include"
   rm -f ./rkt-uuid
-  sudo timeout --foreground --kill-after=10 5m \
+  sudo timeout --foreground --kill-after=10 10m \
     ./rkt/rkt \
     run --interactive \
     --uuid-file-save=./rkt-uuid \
