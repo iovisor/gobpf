@@ -13,8 +13,8 @@ set -o pipefail
 readonly kernel_versions=("4.4.129" "4.9.96" "4.14.37")
 readonly rkt_version="1.30.0"
 
-if [[ ! -f "./rkt/rkt" ]] \
-  || [[ ! "$(./rkt/rkt version | awk '/rkt Version/{print $3}')" == "${rkt_version}" ]]; then
+if [[ ! -f "./rkt/rkt" ]] ||
+  [[ ! "$(./rkt/rkt version | awk '/rkt Version/{print $3}')" == "${rkt_version}" ]]; then
 
   curl -LsS "https://github.com/coreos/rkt/releases/download/v${rkt_version}/rkt-v${rkt_version}.tar.gz" \
     -o rkt.tgz
