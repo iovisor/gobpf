@@ -36,12 +36,13 @@ import "C"
 
 // Module type
 type Module struct {
-	p           unsafe.Pointer
-	funcs       map[string]int
-	kprobes     map[string]int
-	uprobes     map[string]int
-	tracepoints map[string]int
-	perfEvents  map[string][]int
+	p              unsafe.Pointer
+	funcs          map[string]int
+	kprobes        map[string]int
+	uprobes        map[string]int
+	tracepoints    map[string]int
+	rawTracepoints map[string]int
+	perfEvents     map[string][]int
 }
 
 type compileRequest struct {
@@ -90,12 +91,13 @@ func newModule(code string, cflags []string) *Module {
 		return nil
 	}
 	return &Module{
-		p:           c,
-		funcs:       make(map[string]int),
-		kprobes:     make(map[string]int),
-		uprobes:     make(map[string]int),
-		tracepoints: make(map[string]int),
-		perfEvents:  make(map[string][]int),
+		p:              c,
+		funcs:          make(map[string]int),
+		kprobes:        make(map[string]int),
+		uprobes:        make(map[string]int),
+		tracepoints:    make(map[string]int),
+		rawTracepoints: make(map[string]int),
+		perfEvents:     make(map[string][]int),
 	}
 }
 
@@ -140,6 +142,11 @@ func (bpf *Module) Close() {
 		C.free(unsafe.Pointer(tpCategoryCS))
 		C.free(unsafe.Pointer(tpNameCS))
 	}
+	for _, v := range bpf.rawTracepoints {
+		C.bpf_close_perf_event_fd((C.int)(v))
+		// There is nothing else to do to detach.
+		// In fact, bpf_detach_tracepoint is also an empty function.
+	}
 	for _, vs := range bpf.perfEvents {
 		for _, v := range vs {
 			C.bpf_close_perf_event_fd((C.int)(v))
@@ -163,6 +170,11 @@ func (bpf *Module) LoadKprobe(name string) (int, error) {
 // LoadTracepoint loads a program of type BPF_PROG_TYPE_TRACEPOINT
 func (bpf *Module) LoadTracepoint(name string) (int, error) {
 	return bpf.Load(name, C.BPF_PROG_TYPE_TRACEPOINT, 0, 0)
+}
+
+// LoadRawTracepoint loads a program of type BPF_PROG_TYPE_RAW_TRACEPOINT
+func (bpf *Module) LoadRawTracepoint(name string) (int, error) {
+	return bpf.Load(name, C.BPF_PROG_TYPE_RAW_TRACEPOINT, 0, 0)
 }
 
 // LoadPerfEvent loads a program of type BPF_PROG_TYPE_PERF_EVENT
@@ -285,6 +297,26 @@ func (bpf *Module) AttachTracepoint(name string, fd int) error {
 		return fmt.Errorf("failed to attach BPF tracepoint: %v", err)
 	}
 	bpf.tracepoints[name] = int(res)
+	return nil
+}
+
+// AttachRawTracepoint attaches a raw tracepoint fd to a function
+// The 'name' argument is in the format 'name', there is no category
+func (bpf *Module) AttachRawTracepoint(name string, fd int) error {
+	if _, ok := bpf.rawTracepoints[name]; ok {
+		return nil
+	}
+
+	tpNameCS := C.CString(name)
+
+	res, err := C.bpf_attach_raw_tracepoint(C.int(fd), tpNameCS)
+
+	C.free(unsafe.Pointer(tpNameCS))
+
+	if res < 0 {
+		return fmt.Errorf("failed to attach BPF tracepoint: %v", err)
+	}
+	bpf.rawTracepoints[name] = int(res)
 	return nil
 }
 
