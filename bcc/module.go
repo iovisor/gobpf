@@ -55,6 +55,15 @@ const (
 	BPF_PROBE_RETURN
 )
 
+const (
+	XDP_FLAGS_UPDATE_IF_NOEXIST = uint32(1) << iota
+	XDP_FLAGS_SKB_MODE
+	XDP_FLAGS_DRV_MODE
+	XDP_FLAGS_HW_MODE
+	XDP_FLAGS_MODES = XDP_FLAGS_SKB_MODE | XDP_FLAGS_DRV_MODE | XDP_FLAGS_HW_MODE
+	XDP_FLAGS_MASK  = XDP_FLAGS_UPDATE_IF_NOEXIST | XDP_FLAGS_MODES
+)
+
 var (
 	defaultCflags []string
 	compileCh     chan compileRequest
@@ -465,6 +474,11 @@ func (bpf *Module) attachXDP(devName string, fd int, flags uint32) error {
 // AttachXDP attaches a xdp fd to a device.
 func (bpf *Module) AttachXDP(devName string, fd int) error {
 	return bpf.attachXDP(devName, fd, 0)
+}
+
+// AttachXDPWithFlags attaches a xdp fd to a device with flags.
+func (bpf *Module) AttachXDPWithFlags(devName string, fd int, flags uint32) error {
+	return bpf.attachXDP(devName, fd, flags)
 }
 
 // RemoveXDP removes any xdp from this device.
