@@ -161,6 +161,12 @@ func (bpf *Module) Close() {
 	}
 }
 
+// GetProgramTag returns a tag for ebpf program under passed fd
+func (bpf *Module) GetProgramTag(fd int) (tag uint64, err error) {
+	_, err = C.bpf_prog_get_tag(C.int(fd), (*C.ulonglong)(unsafe.Pointer(&tag)))
+	return tag, err
+}
+
 // LoadNet loads a program of type BPF_PROG_TYPE_SCHED_ACT.
 func (bpf *Module) LoadNet(name string) (int, error) {
 	return bpf.Load(name, C.BPF_PROG_TYPE_SCHED_ACT, 0, 0)
