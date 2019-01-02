@@ -82,15 +82,6 @@ int xdp_prog1(struct CTXTYPE *ctx) {
             return rc;
             h_proto = vhdr->h_vlan_encapsulated_proto;
     }
-    if (h_proto == htons(ETH_P_8021Q) || h_proto == htons(ETH_P_8021AD)) {
-        struct vlan_hdr *vhdr;
-
-        vhdr = data + nh_off;
-        nh_off += sizeof(struct vlan_hdr);
-        if (data + nh_off > data_end)
-            return rc;
-            h_proto = vhdr->h_vlan_encapsulated_proto;
-    }
 
     if (h_proto == htons(ETH_P_IP))
         index = parse_ipv4(data, nh_off, data_end);
