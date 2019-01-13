@@ -827,3 +827,10 @@ func (b *Module) Map(name string) *Map {
 func (m *Map) Fd() int {
 	return int(m.m.fd)
 }
+
+// GetProgFd returns the fd for a pinned bpf program at the given path
+func GetProgFd(pinPath string) int {
+	pathC := C.CString(pinPath)
+	defer C.free(unsafe.Pointer(pathC))
+	return int(C.get_pinned_obj_fd(pathC))
+}
