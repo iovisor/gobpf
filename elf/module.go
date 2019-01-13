@@ -361,19 +361,20 @@ func (p *CgroupProgram) Fd() int {
 }
 
 func AttachCgroupProgram(cgroupProg *CgroupProgram, cgroupPath string, attachType AttachType) error {
+	return AttachCgroupProgramFromFd(cgroupProg.fd, cgroupPath, attachType)
+}
+
+func AttachCgroupProgramFromFd(progFd int, cgroupPath string, attachType AttachType) error {
 	f, err := os.Open(cgroupPath)
 	if err != nil {
 		return fmt.Errorf("error opening cgroup %q: %v", cgroupPath, err)
 	}
 	defer f.Close()
 
-	progFd := C.int(cgroupProg.fd)
-	cgroupFd := C.int(f.Fd())
-	ret, err := C.bpf_prog_attach(progFd, cgroupFd, uint32(attachType))
+	ret, err := C.bpf_prog_attach(C.int(progFd), C.int(f.Fd()), uint32(attachType))
 	if ret < 0 {
 		return fmt.Errorf("failed to attach prog to cgroup %q: %v", cgroupPath, err)
 	}
-
 	return nil
 }
 
