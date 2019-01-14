@@ -59,7 +59,7 @@ func pinObject(fd int, pinPath string) error {
 	}
 	_, err = os.Stat(pinPath)
 	if err == nil {
-		return fmt.Errorf("aborting, found file at %q: %v", pinPath, err)
+		return fmt.Errorf("aborting, found file at %q", pinPath)
 	}
 	if err != nil && !os.IsNotExist(err) {
 		return fmt.Errorf("failed to stat %q: %v", pinPath, err)
