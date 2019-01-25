@@ -369,6 +369,13 @@ func elfReadMaps(file *elf.File, params map[string]SectionParams) (map[string]*M
 
 		mapDef := (*C.bpf_map_def)(unsafe.Pointer(&data[0]))
 
+		// check if the map size has to be changed
+		if p, ok := params[section.Name]; ok {
+			if p.MapMaxEntries != 0 {
+				mapDef.max_entries = C.uint(p.MapMaxEntries)
+			}
+		}
+
 		mapPath, err := createMapPath(mapDef, name, params[section.Name])
 		if err != nil {
 			return nil, err
@@ -469,6 +476,7 @@ type SectionParams struct {
 	PerfRingBufferPageCount   int
 	SkipPerfMapInitialization bool
 	PinPath                   string // path to be pinned, relative to "/sys/fs/bpf"
+	MapMaxEntries             int    // Used to override bpf map entries size
 }
 
 // Load loads the BPF programs and BPF maps in the module. Each ELF section
