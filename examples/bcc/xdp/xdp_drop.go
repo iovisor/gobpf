@@ -73,6 +73,8 @@ int xdp_prog1(struct CTXTYPE *ctx) {
 
     h_proto = eth->h_proto;
 
+    // While the following code appears to be duplicated accidentally,
+    // it's intentional to handle double tags in ethernet frames.
     if (h_proto == htons(ETH_P_8021Q) || h_proto == htons(ETH_P_8021AD)) {
         struct vlan_hdr *vhdr;
 
