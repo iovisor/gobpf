@@ -3,6 +3,7 @@
  */
 
 #include "../elf/include/bpf.h"
+#include "../elf/include/bpf_map.h"
 
 #define SEC(NAME) __attribute__((section(NAME), used))
 
@@ -88,6 +89,18 @@ int kprobe__dummy(struct pt_regs *ctx)
 
 SEC("kretprobe/dummy")
 int kretprobe__dummy(struct pt_regs *ctx)
+{
+	return 0;
+}
+
+SEC("uprobe/dummy")
+int uprobe__dummy(struct pt_regs *ctx)
+{
+	return 0;
+}
+
+SEC("uretprobe/dummy")
+int uretprobe__dummy(struct pt_regs *ctx)
 {
 	return 0;
 }

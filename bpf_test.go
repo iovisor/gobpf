@@ -268,6 +268,15 @@ func containsProbe(probes []*elf.Kprobe, name string) bool {
 	return false
 }
 
+func containsUprobe(uprobes []*elf.Uprobe, name string) bool {
+	for _, u := range uprobes {
+		if u.Name == name {
+			return true
+		}
+	}
+	return false
+}
+
 func containsCgroupProg(cgroupProgs []*elf.CgroupProgram, name string) bool {
 	for _, c := range cgroupProgs {
 		if c.Name == name {
@@ -354,6 +363,26 @@ func checkProbes(t *testing.T, b *elf.Module) {
 	for _, ek := range expectedProbes {
 		if !containsProbe(probes, ek) {
 			t.Fatalf("probe %q not found", ek)
+		}
+	}
+}
+
+func checkUprobes(t *testing.T, b *elf.Module) {
+	var expectedUprobes = []string{
+		"uprobe/dummy",
+		"uretprobe/dummy",
+	}
+
+	var uprobes []*elf.Uprobe
+	for p := range b.IterUprobes() {
+		uprobes = append(uprobes, p)
+	}
+	if len(uprobes) != len(expectedUprobes) {
+		t.Fatalf("unexpected number of uprobes. Got %d, expected %d", len(uprobes), len(expectedUprobes))
+	}
+	for _, ek := range expectedUprobes {
+		if !containsUprobe(uprobes, ek) {
+			t.Fatalf("uprobe %q not found", ek)
 		}
 	}
 }
@@ -623,6 +652,7 @@ func TestModuleLoadELF(t *testing.T) {
 
 	checkMaps(t, b)
 	checkProbes(t, b)
+	checkUprobes(t, b)
 	checkCgroupProgs(t, b)
 	checkSocketFilters(t, b)
 	checkTracepointProgs(t, b)
