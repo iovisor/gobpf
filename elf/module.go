@@ -572,6 +572,19 @@ func (up *Uprobe) Fd() int {
 	return up.fd
 }
 
+// IterSchedProgram returns a channel that emits the sched programs included in the
+// module.
+func (b *Module) IterSchedProgram() <-chan *SchedProgram {
+	ch := make(chan *SchedProgram)
+	go func() {
+		for name := range b.schedPrograms {
+			ch <- b.schedPrograms[name]
+		}
+		close(ch)
+	}()
+	return ch
+}
+
 func (b *Module) SchedProgram(name string) *SchedProgram {
 	return b.schedPrograms[name]
 }
