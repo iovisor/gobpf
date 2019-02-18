@@ -17,6 +17,7 @@ package main
 import (
 	"bytes"
 	"encoding/binary"
+	"flag"
 	"fmt"
 	"os"
 	"os/signal"
@@ -53,7 +54,28 @@ type readlineEvent struct {
 	Str [80]byte
 }
 
+var (
+	name string
+	h bool
+)
+
+func init() {
+	flag.BoolVar(&h, "h", false, "Print this help message")
+	flag.StringVar(&name, "s", "", `Specify the location of libreadline.so library.
+You may need specify this option when failing to run the script directly.`)
+	flag.Usage = usage
+}
+
 func main() {
+	flag.Parse()
+	if h {
+		flag.Usage()
+		os.Exit(1)
+	}
+	if name == "" {
+		name = "/bin/bash"
+	}
+
 	m := bpf.NewModule(source, []string{})
 	defer m.Close()
 
@@ -63,7 +85,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	err = m.AttachUretprobe("/bin/bash", "readline", readlineUretprobe, -1)
+	err = m.AttachUretprobe(name, "readline", readlineUretprobe, -1)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Failed to attach return_value: %s\n", err)
 		os.Exit(1)
@@ -102,3 +124,11 @@ func main() {
 	<-sig
 	perfMap.Stop()
 }
+
+func usage() {
+	fmt.Fprintf(os.Stderr, "bash_readline: Print entered bash commands from all " +
+		"running shells.\n\nUsage: bash_readline [-s shared]\n\nOptions:\n")
+	flag.PrintDefaults()
+}
+
+
