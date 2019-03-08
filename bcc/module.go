@@ -237,14 +237,14 @@ func (bpf *Module) load(name string, progType int, logLevel, logSize uint) (int,
 var kprobeRegexp = regexp.MustCompile("[+.]")
 var uprobeRegexp = regexp.MustCompile("[^a-zA-Z0-9_]")
 
-func (bpf *Module) attachProbe(evName string, attachType uint32, fnName string, fd int) error {
+func (bpf *Module) attachProbe(evName string, attachType uint32, fnName string, fd int, maxActive int) error {
 	if _, ok := bpf.kprobes[evName]; ok {
 		return nil
 	}
 
 	evNameCS := C.CString(evName)
 	fnNameCS := C.CString(fnName)
-	res, err := C.bpf_attach_kprobe(C.int(fd), attachType, evNameCS, fnNameCS, (C.uint64_t)(0))
+	res, err := C.bpf_attach_kprobe(C.int(fd), attachType, evNameCS, fnNameCS, (C.uint64_t)(0), C.int(maxActive))
 	C.free(unsafe.Pointer(evNameCS))
 	C.free(unsafe.Pointer(fnNameCS))
 
@@ -270,17 +270,17 @@ func (bpf *Module) attachUProbe(evName string, attachType uint32, path string, a
 }
 
 // AttachKprobe attaches a kprobe fd to a function.
-func (bpf *Module) AttachKprobe(fnName string, fd int) error {
+func (bpf *Module) AttachKprobe(fnName string, fd int, maxActive int) error {
 	evName := "p_" + kprobeRegexp.ReplaceAllString(fnName, "_")
 
-	return bpf.attachProbe(evName, BPF_PROBE_ENTRY, fnName, fd)
+	return bpf.attachProbe(evName, BPF_PROBE_ENTRY, fnName, fd, maxActive)
 }
 
 // AttachKretprobe attaches a kretprobe fd to a function.
-func (bpf *Module) AttachKretprobe(fnName string, fd int) error {
+func (bpf *Module) AttachKretprobe(fnName string, fd int, maxActive int) error {
 	evName := "r_" + kprobeRegexp.ReplaceAllString(fnName, "_")
 
-	return bpf.attachProbe(evName, BPF_PROBE_RETURN, fnName, fd)
+	return bpf.attachProbe(evName, BPF_PROBE_RETURN, fnName, fd, maxActive)
 }
 
 // AttachTracepoint attaches a tracepoint fd to a function
