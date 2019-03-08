@@ -204,7 +204,9 @@ func run() {
 		os.Exit(1)
 	}
 
-	if err := m.AttachKprobe(fnName, kprobe); err != nil {
+	// passing -1 for maxActive signifies to use the default
+	// according to the kernel kprobes documentation
+	if err := m.AttachKprobe(fnName, kprobe, -1); err != nil {
 		fmt.Fprintf(os.Stderr, "Failed to attach syscall__execve: %s\n", err)
 		os.Exit(1)
 	}
@@ -215,7 +217,9 @@ func run() {
 		os.Exit(1)
 	}
 
-	if err := m.AttachKretprobe(fnName, kretprobe); err != nil {
+	// passing -1 for maxActive signifies to use the default
+	// according to the kernel kretprobes documentation
+	if err := m.AttachKretprobe(fnName, kretprobe, -1); err != nil {
 		fmt.Fprintf(os.Stderr, "Failed to attach do_ret_sys_execve: %s\n", err)
 		os.Exit(1)
 	}
