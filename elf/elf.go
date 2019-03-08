@@ -76,7 +76,7 @@ static void bpf_apply_relocation(int fd, struct bpf_insn *insn)
 	insn->imm = fd;
 }
 
-static int bpf_create_map(enum bpf_map_type map_type, int key_size,
+static int bcc_create_map(enum bpf_map_type map_type, int key_size,
 	int value_size, int max_entries)
 {
 	int ret;
@@ -158,7 +158,7 @@ static bpf_map *bpf_load_map(bpf_map_def *map_def, const char *path)
 		do_pin = 1;
 	}
 
-	map->fd = bpf_create_map(map_def->type,
+	map->fd = bcc_create_map(map_def->type,
 		map_def->key_size,
 		map_def->value_size,
 		map_def->max_entries
@@ -178,7 +178,7 @@ static bpf_map *bpf_load_map(bpf_map_def *map_def, const char *path)
 	return map;
 }
 
-static int bpf_prog_load(enum bpf_prog_type prog_type,
+static int bcc_prog_load(enum bpf_prog_type prog_type,
 	const struct bpf_insn *insns, int prog_len,
 	const char *license, int kern_version,
 	char *log_buf, int log_size)
@@ -598,7 +598,7 @@ func (b *Module) Load(parameters map[string]SectionParams) error {
 
 				insns := (*C.struct_bpf_insn)(unsafe.Pointer(&rdata[0]))
 
-				progFd, err := C.bpf_prog_load(progType,
+				progFd, err := C.bcc_prog_load(progType,
 					insns, C.int(rsection.Size),
 					(*C.char)(lp), C.int(version),
 					(*C.char)(unsafe.Pointer(&b.log[0])), C.int(len(b.log)))
@@ -712,7 +712,7 @@ func (b *Module) Load(parameters map[string]SectionParams) error {
 
 			insns := (*C.struct_bpf_insn)(unsafe.Pointer(&data[0]))
 
-			progFd, err := C.bpf_prog_load(progType,
+			progFd, err := C.bcc_prog_load(progType,
 				insns, C.int(section.Size),
 				(*C.char)(lp), C.int(version),
 				(*C.char)(unsafe.Pointer(&b.log[0])), C.int(len(b.log)))
