@@ -95,7 +95,10 @@ func newModule(code string, cflags []string) *Module {
 	}
 	cs := C.CString(code)
 	defer C.free(unsafe.Pointer(cs))
-	c := C.bpf_module_create_c_from_string(cs, 2, (**C.char)(&cflagsC[0]), C.int(len(cflagsC)))
+
+	// pass false for allowRLimit for simplicity
+	// TODO allow passing this flag through somehow
+	c := C.bpf_module_create_c_from_string(cs, 2, (**C.char)(&cflagsC[0]), C.int(len(cflagsC)), C.bool(false))
 	if c == nil {
 		return nil
 	}
