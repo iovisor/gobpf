@@ -104,6 +104,8 @@ type Module struct {
 	socketFilters      map[string]*SocketFilter
 	tracepointPrograms map[string]*TracepointProgram
 	schedPrograms      map[string]*SchedProgram
+
+	compatProbe bool // try to be automatically convert function names depending on kernel versions (SyS_ and __x64_sys_)
 }
 
 // Kprobe represents a kprobe or kretprobe and has to be declared
@@ -262,6 +264,14 @@ func perfEventOpenTracepoint(id int, progFd int) (int, error) {
 // Log gives users access to the log buffer with verifier messages
 func (b *Module) Log() []byte {
 	return b.log
+}
+
+// EnableOptionCompatProbe will attempt to automatically convert function
+// names in kprobe and kretprobe to maintain compatibility between kernel
+// versions.
+// See: https://github.com/iovisor/gobpf/issues/146
+func (b *Module) EnableOptionCompatProbe() {
+	b.compatProbe = true
 }
 
 // EnableKprobe enables a kprobe/kretprobe identified by secName.

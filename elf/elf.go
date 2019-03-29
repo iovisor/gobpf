@@ -581,6 +581,19 @@ func (b *Module) Load(parameters map[string]SectionParams) error {
 				progType = uint32(C.BPF_PROG_TYPE_SCHED_ACT)
 			}
 
+			// If Kprobe or Kretprobe for a syscall, use correct syscall prefix in section name
+			if b.compatProbe && (isKprobe || isKretprobe) {
+				str := strings.Split(secName, "/")
+				if (strings.HasPrefix(str[1], "SyS_")) || (strings.HasPrefix(str[1], "sys_")) {
+					name := strings.TrimPrefix(str[1], "SyS_")
+					name = strings.TrimPrefix(name, "sys_")
+					syscallFnName, err := GetSyscallFnName(name)
+					if err == nil {
+						secName = fmt.Sprintf("%s/%s", str[0], syscallFnName)
+					}
+				}
+			}
+
 			if isKprobe || isKretprobe || isUprobe || isUretprobe || isCgroupSkb || isCgroupSock || isSocketFilter || isTracepoint || isSchedCls || isSchedAct {
 				rdata, err := rsection.Data()
 				if err != nil {
@@ -698,6 +711,19 @@ func (b *Module) Load(parameters map[string]SectionParams) error {
 			progType = uint32(C.BPF_PROG_TYPE_SCHED_CLS)
 		case isSchedAct:
 			progType = uint32(C.BPF_PROG_TYPE_SCHED_ACT)
+		}
+
+		// If Kprobe or Kretprobe for a syscall, use correct syscall prefix in section name
+		if b.compatProbe && (isKprobe || isKretprobe) {
+			str := strings.Split(secName, "/")
+			if (strings.HasPrefix(str[1], "SyS_")) || (strings.HasPrefix(str[1], "sys_")) {
+				name := strings.TrimPrefix(str[1], "SyS_")
+				name = strings.TrimPrefix(name, "sys_")
+				syscallFnName, err := GetSyscallFnName(name)
+				if err == nil {
+					secName = fmt.Sprintf("%s/%s", str[0], syscallFnName)
+				}
+			}
 		}
 
 		if isKprobe || isKretprobe || isUprobe || isUretprobe || isCgroupSkb || isCgroupSock || isSocketFilter || isTracepoint || isSchedCls || isSchedAct {
