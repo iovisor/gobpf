@@ -416,7 +416,7 @@ func (b *Module) AttachParserVerdictPrograms() error {
 		}
 
 		// find sockmap
-		sockmap := b.maps["maps/" + sockmapName]
+		sockmap := b.maps[sockmapName]
 		if sockmap == nil {
 			err = fmt.Errorf("failed to find sockmap %s using section format: %s", sockmapName, parserVerdictProgramSectionFormat)
 			continue
