@@ -31,6 +31,7 @@ sections (`SEC("...")`). Currently supported are:
 * `kprobe/...`
 * `cgroup/skb`
 * `cgroup/sock`
+* `sockops`
 * `maps/...`
 * `socket...`
 * `tracepoint...`
