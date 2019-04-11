@@ -144,12 +144,14 @@ static bpf_map *bpf_load_map(bpf_map_def *map_def, const char *path)
 	switch (map_def->pinning) {
 	case 1: // PIN_OBJECT_NS
 		// TODO to be implemented
+		free(map);
 		return 0;
 	case 2: // PIN_GLOBAL_NS
 	case 3: // PIN_CUSTOM_NS
 		if (stat(path, &st) == 0) {
 			ret = get_pinned_obj_fd(path);
 			if (ret < 0) {
+				free(map);
 				return 0;
 			}
 			map->fd = ret;
@@ -165,12 +167,14 @@ static bpf_map *bpf_load_map(bpf_map_def *map_def, const char *path)
 	);
 
 	if (map->fd < 0) {
+		free(map);
 		return 0;
 	}
 
 	if (do_pin) {
 		ret = bpf_pin_object(map->fd, path);
 		if (ret < 0) {
+			free(map);
 			return 0;
 		}
 	}
@@ -357,6 +361,11 @@ func elfReadMaps(file *elf.File, params map[string]SectionParams) (map[string]*M
 			continue
 		}
 
+		name := strings.TrimPrefix(section.Name, "maps/")
+		if oldMap, ok := maps[name]; ok {
+			return nil, fmt.Errorf("duplicate map: %q and %q", oldMap.Name, name)
+		}
+
 		data, err := section.Data()
 		if err != nil {
 			return nil, err
@@ -364,8 +373,6 @@ func elfReadMaps(file *elf.File, params map[string]SectionParams) (map[string]*M
 		if len(data) != C.sizeof_struct_bpf_map_def {
 			return nil, fmt.Errorf("only one map with size %d bytes allowed per section (check bpf_map_def)", C.sizeof_struct_bpf_map_def)
 		}
-
-		name := strings.TrimPrefix(section.Name, "maps/")
 
 		mapDef := (*C.bpf_map_def)(unsafe.Pointer(&data[0]))
 
@@ -388,9 +395,6 @@ func elfReadMaps(file *elf.File, params map[string]SectionParams) (map[string]*M
 			return nil, fmt.Errorf("error while loading map %q: %v", section.Name, err)
 		}
 
-		if oldMap, ok := maps[name]; ok {
-			return nil, fmt.Errorf("duplicate map: %q and %q", oldMap.Name, name)
-		}
 		maps[name] = &Map{
 			Name: name,
 			m:    cm,
