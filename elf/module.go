@@ -420,6 +420,10 @@ func (p *CgroupProgram) Fd() int {
 	return p.fd
 }
 
+func (tp *TracepointProgram) Fd() int {
+	return tp.fd
+}
+
 var safeEventRegexp = regexp.MustCompile("[^a-zA-Z0-9]")
 
 func safeEventName(event string) string {
