@@ -862,6 +862,24 @@ func (b *Module) initializePerfMaps(parameters map[string]SectionParams) error {
 	return nil
 }
 
+func (b *Module) PerfMapStop(mapName string) error {
+	m, ok := b.maps[mapName]
+	if !ok {
+		return fmt.Errorf("map %q not found", mapName)
+	}
+	cpus, err := cpuonline.Get()
+	if err != nil {
+		return fmt.Errorf("failed to determine online cpus: %v", err)
+	}
+	for _, cpu := range cpus {
+		err = b.DeleteElement(m, unsafe.Pointer(&cpu))
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 // Map represents a eBPF map. An eBPF map has to be declared in the
 // C file.
 type Map struct {
