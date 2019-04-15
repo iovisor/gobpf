@@ -168,7 +168,7 @@ type SchedProgram struct {
 	fd    int
 }
 
-// SkSkbProgram represents a packet parser or redirect program
+// SkSkbProgram represents a parser or verdict program
 type SkSkbProgram struct {
 	Name  string
 	insns *C.struct_bpf_insn
