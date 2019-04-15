@@ -140,13 +140,13 @@ int socket__dummy(struct __sk_buff *skb)
 	return 0;
 }
 
-SEC("sk/skb/parser/dummy_sockmap")
+SEC("sk_skb/stream_parser/dummy_sockmap")
 int parser_dummy(struct __sk_buff *skb)
 {
 	return 0;
 }
 
-SEC("sk/skb/verdict/dummy_sockmap")
+SEC("sk_skb/stream_verdict/dummy_sockmap")
 int verdict_dummy(struct __sk_buff *skb)
 {
 	return 0;

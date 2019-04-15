@@ -555,7 +555,7 @@ func (b *Module) Load(parameters map[string]SectionParams) error {
 			isTracepoint := strings.HasPrefix(secName, "tracepoint/")
 			isSchedCls := strings.HasPrefix(secName, "sched_cls/")
 			isSchedAct := strings.HasPrefix(secName, "sched_act/")
-			isSkSkb := strings.HasPrefix(secName, "sk/skb/")
+			isSkSkb := strings.HasPrefix(secName, "sk_skb/")
 
 			var progType uint32
 			switch {
@@ -697,7 +697,7 @@ func (b *Module) Load(parameters map[string]SectionParams) error {
 		isTracepoint := strings.HasPrefix(secName, "tracepoint/")
 		isSchedCls := strings.HasPrefix(secName, "sched_cls/")
 		isSchedAct := strings.HasPrefix(secName, "sched_act/")
-		isSkSkb := strings.HasPrefix(secName, "sk/skb/")
+		isSkSkb := strings.HasPrefix(secName, "sk_skb/")
 
 		var progType uint32
 		switch {

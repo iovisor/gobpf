@@ -92,9 +92,9 @@ int bpf_detach_socket(int sock, int fd)
 import "C"
 
 const (
-	parserVerdictProgramSectionFormat = "sk/skb/{parser,verdict}/<sockmap_name>"
-	programTypeParser = "parser"
-	programTypeVerdict = "verdict"
+	parserVerdictProgramSectionFormat = "sk_skb/{stream_parser,stream_verdict}/<sockmap_name>"
+	programTypeParser                 = "stream_parser"
+	programTypeVerdict                = "stream_verdict"
 )
 
 type Module struct {
@@ -401,14 +401,14 @@ func (b *Module) AttachParserVerdictPrograms() error {
 
 		// parse program type and sockmap name
 		secName := skSkbProg.Name
-		programTypeSockmapName := strings.TrimPrefix(secName, "sk/skb/")
+		programTypeSockmapName := strings.TrimPrefix(secName, "sk_skb/")
 		var programType uint32
 		var sockmapName string
-		if strings.HasPrefix(programTypeSockmapName, programTypeParser + "/") {
-			sockmapName = strings.TrimPrefix(programTypeSockmapName, programTypeParser + "/")
+		if strings.HasPrefix(programTypeSockmapName, programTypeParser+"/") {
+			sockmapName = strings.TrimPrefix(programTypeSockmapName, programTypeParser+"/")
 			programType = uint32(C.BPF_SK_SKB_STREAM_PARSER)
-		} else if strings.HasPrefix(programTypeSockmapName, programTypeVerdict + "/") {
-			sockmapName = strings.TrimPrefix(programTypeSockmapName, programTypeVerdict + "/")
+		} else if strings.HasPrefix(programTypeSockmapName, programTypeVerdict+"/") {
+			sockmapName = strings.TrimPrefix(programTypeSockmapName, programTypeVerdict+"/")
 			programType = uint32(C.BPF_SK_SKB_STREAM_VERDICT)
 		} else {
 			err = fmt.Errorf("section name %s is in the wrong format: %s", secName, parserVerdictProgramSectionFormat)
