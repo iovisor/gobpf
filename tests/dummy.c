@@ -81,9 +81,16 @@ struct bpf_map_def SEC("maps/dummy_array_custom") dummy_array_custom = {
 	.pinning = PIN_CUSTOM_NS,
 };
 
+struct sock_key {
+	__u32 sip4;
+	__u32 dip4;
+	__u32 sport;
+	__u32 dport;
+};
+
 struct bpf_map_def SEC("maps/dummy_sockmap") sock_map = {
 	.type = BPF_MAP_TYPE_SOCKMAP,
-	.key_size = sizeof(int),
+	.key_size = sizeof(struct sock_key),
 	.value_size = sizeof(unsigned int),
 	.max_entries = 128,
 };
