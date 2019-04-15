@@ -147,7 +147,7 @@ int socket__dummy(struct __sk_buff *skb)
 	return 0;
 }
 
-# if KERNEL_VERSION_GTE(414)
+#if KERNEL_VERSION_GTE(414)
 SEC("sk_skb/stream_parser/dummy_sockmap")
 int parser_dummy(struct __sk_buff *skb)
 {
