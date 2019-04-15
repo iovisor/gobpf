@@ -409,10 +409,10 @@ func (b *Module) AttachParserVerdictPrograms() error {
 		var sockmapName string
 		if strings.HasPrefix(programTypeSockmapName, programTypeParser+"/") {
 			sockmapName = strings.TrimPrefix(programTypeSockmapName, programTypeParser+"/")
-			programType = uint32(C.BPF_SK_SKB_STREAM_PARSER)
+			programType = uint32(SkSkbStreamParserType)
 		} else if strings.HasPrefix(programTypeSockmapName, programTypeVerdict+"/") {
 			sockmapName = strings.TrimPrefix(programTypeSockmapName, programTypeVerdict+"/")
-			programType = uint32(C.BPF_SK_SKB_STREAM_VERDICT)
+			programType = uint32(SkSkbStreamVerdictType)
 		} else {
 			err = fmt.Errorf("section name %s is in the wrong format: %s", secName, parserVerdictProgramSectionFormat)
 			continue
