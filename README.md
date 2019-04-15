@@ -35,7 +35,7 @@ sections (`SEC("...")`). Currently supported are:
 * `socket...`
 * `tracepoint...`
 * `uprobe/...` and `uretprobe/...`
-* `sk_skb/stream_parser` and `sk_skb/stream_verdict`
+* `sk_skb/stream_parser/<sockmap_name>` and `sk_skb/stream_verdict/<sockmap_name>`
 
 Map definitions must correspond to `bpf_map_def` from [the elf package](https://github.com/iovisor/gobpf/blob/master/elf/include/bpf_map.h)
 Otherwise you will encounter an error like `only one map with size 280 bytes allowed per section (check bpf_map_def)`.
