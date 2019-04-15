@@ -137,6 +137,9 @@ const (
 	IngressType AttachType = iota
 	EgressType
 	SockCreateType
+	SockOpsType
+	SkSkbStreamParserType
+	SkSkbStreamVerdictType
 )
 
 // CgroupProgram represents a cgroup skb/sock program
