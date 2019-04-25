@@ -158,6 +158,9 @@ func (b *Module) LookupNextElement(mp *Map, key, nextKey, value unsafe.Pointer) 
 		uintptr(unsafe.Pointer(&uba)),
 		unsafe.Sizeof(uba),
 	)
+	if err == syscall.ENOENT {
+		return false, nil
+	}
 	if err != 0 {
 		return false, fmt.Errorf("unable to find next element: %s", err)
 	}

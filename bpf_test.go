@@ -556,13 +556,13 @@ func checkLookupElement(t *testing.T, b *elf.Module) {
 
 	key = 0
 	nextKey := 0
-	for range found {
+	for {
 		f, err := b.LookupNextElement(mp, unsafe.Pointer(&key), unsafe.Pointer(&nextKey), unsafe.Pointer(&lvalue))
 		if err != nil {
-			t.Fatal("failed trying to lookup the next element")
+			t.Fatalf("failed trying to lookup the next element: %s", err)
 		}
 		if !f {
-			t.Fatalf("unable to find key %d", key)
+			break
 		}
 
 		if nextKey != lvalue {
