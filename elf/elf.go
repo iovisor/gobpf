@@ -246,12 +246,13 @@ static int bpf_update_element(int fd, void *key, void *value, unsigned long long
 }
 
 
-static int perf_event_open_map(int pid, int cpu, int group_fd, unsigned long flags)
+static int perf_event_open_map(int pid, int cpu, int group_fd, unsigned long flags, int backward)
 {
 	struct perf_event_attr attr = {0,};
 	attr.type = PERF_TYPE_SOFTWARE;
 	attr.sample_type = PERF_SAMPLE_RAW;
 	attr.wakeup_events = 1;
+	attr.write_backward = !!backward;
 
 	attr.size = sizeof(struct perf_event_attr);
 	attr.config = 10; // PERF_COUNT_SW_BPF_OUTPUT
@@ -487,6 +488,7 @@ type SectionParams struct {
 	SkipPerfMapInitialization bool
 	PinPath                   string // path to be pinned, relative to "/sys/fs/bpf"
 	MapMaxEntries             int    // Used to override bpf map entries size
+	PerfRingBufferBackward    bool
 }
 
 // Load loads the BPF programs and BPF maps in the module. Each ELF section
@@ -836,6 +838,7 @@ func (b *Module) initializePerfMaps(parameters map[string]SectionParams) error {
 
 		pageSize := os.Getpagesize()
 		b.maps[name].pageCount = 8 // reasonable default
+		backward := false
 
 		sectionName := "maps/" + name
 		if params, ok := parameters[sectionName]; ok {
@@ -848,6 +851,9 @@ func (b *Module) initializePerfMaps(parameters map[string]SectionParams) error {
 				}
 				b.maps[name].pageCount = params.PerfRingBufferPageCount
 			}
+			if params.PerfRingBufferBackward {
+				backward = true
+			}
 		}
 
 		cpus, err := cpuonline.Get()
@@ -857,7 +863,11 @@ func (b *Module) initializePerfMaps(parameters map[string]SectionParams) error {
 
 		for _, cpu := range cpus {
 			cpuC := C.int(cpu)
-			pmuFD, err := C.perf_event_open_map(-1 /* pid */, cpuC /* cpu */, -1 /* group_fd */, C.PERF_FLAG_FD_CLOEXEC)
+			backwardC := C.int(0)
+			if backward {
+				backwardC = 1
+			}
+			pmuFD, err := C.perf_event_open_map(-1 /* pid */, cpuC /* cpu */, -1 /* group_fd */, C.PERF_FLAG_FD_CLOEXEC, backwardC)
 			if pmuFD < 0 {
 				return fmt.Errorf("perf_event_open for map error: %v", err)
 			}
