@@ -17,12 +17,13 @@
 package elf
 
 import (
+	"bytes"
 	"fmt"
 	"io/ioutil"
 	"regexp"
 	"strconv"
-	"strings"
-	"syscall"
+
+	"golang.org/x/sys/unix"
 )
 
 var versionRegex = regexp.MustCompile(`^(\d+)\.(\d+).(\d+).*$`)
@@ -54,11 +55,11 @@ func KernelVersionFromReleaseString(releaseString string) (uint32, error) {
 }
 
 func currentVersionUname() (uint32, error) {
-	var buf syscall.Utsname
-	if err := syscall.Uname(&buf); err != nil {
+	var buf unix.Utsname
+	if err := unix.Uname(&buf); err != nil {
 		return 0, err
 	}
-	releaseString := strings.Trim(utsnameStr(buf.Release[:]), "\x00")
+	releaseString := string(buf.Release[:bytes.IndexByte(buf.Release[:], 0)])
 	return KernelVersionFromReleaseString(releaseString)
 }
 
