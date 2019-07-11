@@ -61,6 +61,8 @@ func TestParseDebianVersion(t *testing.T) {
 	}{
 		// 4.9.8
 		{true, "Linux version 4.9.0-9-amd64 (debian-kernel@lists.debian.org) (gcc version 6.3.0 20170516 (Debian 6.3.0-18+deb9u1) ) #1 SMP Debian 4.9.168-1+deb9u3 (2019-06-16)", 264616},
+		// 4.9.8
+		{true, "Linux ip-10-0-75-49 4.9.0-6-amd64 #1 SMP Debian 4.9.88-1+deb9u1 (2018-05-07) x86_64 GNU/Linux", 264616},
 		// 3.0.4
 		{true, "Linux version 3.16.0-9-amd64 (debian-kernel@lists.debian.org) (gcc version 4.9.2 (Debian 4.9.2-10+deb8u2) ) #1 SMP Debian 3.16.68-1 (2019-05-22)", 200772},
 		// Invalid
