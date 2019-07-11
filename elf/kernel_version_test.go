@@ -52,3 +52,28 @@ func TestKernelVersionFromReleaseString(t *testing.T) {
 		}
 	}
 }
+
+func TestParseDebianVersion(t *testing.T) {
+	for _, tc := range []struct {
+		succeed       bool
+		releaseString string
+		kernelVersion uint32
+	}{
+		// 4.9.8
+		{true, "Linux version 4.9.0-9-amd64 (debian-kernel@lists.debian.org) (gcc version 6.3.0 20170516 (Debian 6.3.0-18+deb9u1) ) #1 SMP Debian 4.9.168-1+deb9u3 (2019-06-16)", 264616},
+		// 3.0.4
+		{true, "Linux version 3.16.0-9-amd64 (debian-kernel@lists.debian.org) (gcc version 4.9.2 (Debian 4.9.2-10+deb8u2) ) #1 SMP Debian 3.16.68-1 (2019-05-22)", 200772},
+		// Invalid
+		{false, "Linux version 4.9.125-linuxkit (root@659b6d51c354) (gcc version 6.4.0 (Alpine 6.4.0) ) #1 SMP Fri Sep 7 08:20:28 UTC 2018", 0},
+	} {
+		version, err := parseDebianVersion(tc.releaseString)
+		if err != nil && tc.succeed {
+			t.Errorf("expected %q to succeed: %s", tc.releaseString, err)
+		} else if err == nil && !tc.succeed {
+			t.Errorf("expected %q to fail", tc.releaseString)
+		}
+		if version != tc.kernelVersion {
+			t.Errorf("expected kernel version %d, got %d", tc.kernelVersion, version)
+		}
+	}
+}
