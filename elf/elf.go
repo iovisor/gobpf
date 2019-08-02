@@ -77,7 +77,7 @@ static void bpf_apply_relocation(int fd, struct bpf_insn *insn)
 }
 
 static int bpf_create_map(enum bpf_map_type map_type, int key_size,
-	int value_size, int max_entries)
+	int value_size, int max_entries, int map_flags)
 {
 	int ret;
 	union bpf_attr attr;
@@ -87,6 +87,7 @@ static int bpf_create_map(enum bpf_map_type map_type, int key_size,
 	attr.key_size = key_size;
 	attr.value_size = value_size;
 	attr.max_entries = max_entries;
+	attr.map_flags = map_flags;
 
 	ret = syscall(__NR_bpf, BPF_MAP_CREATE, &attr, sizeof(attr));
 	if (ret < 0 && errno == EPERM) {
@@ -163,7 +164,8 @@ static bpf_map *bpf_load_map(bpf_map_def *map_def, const char *path)
 	map->fd = bpf_create_map(map_def->type,
 		map_def->key_size,
 		map_def->value_size,
-		map_def->max_entries
+		map_def->max_entries,
+		map_def->map_flags
 	);
 
 	if (map->fd < 0) {
