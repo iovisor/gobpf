@@ -6,10 +6,11 @@ This repository provides go bindings for the [bcc framework](https://github.com/
 as well as low-level routines to load and use eBPF programs from .elf
 files.
 
-gobpf is in early stage, but usable. Input and contributions are very much welcome.
+gobpf is at an early stage but is usable nonetheless. Input and contributions
+are very welcome.
 
-We recommend to vendor gobpf and pin its version as the API probably
-undergoes change during development.
+We recommend vendoring gobpf and pinning its version as the API is likely to
+change during development.
 
 ## Requirements
 
@@ -19,14 +20,14 @@ https://github.com/iovisor/bcc/blob/master/docs/kernel-versions.md
 ### `github.com/iovisor/gobpf/bcc`
 
 Install the latest released version of [libbcc](https://github.com/iovisor/bcc/blob/master/INSTALL.md)
-(either by package or source).
+(either using a package manager or by building from source).
 
 ### `github.com/iovisor/gobpf/elf`
 
-#### Building ELF object files
+#### Building ELF Object Files
 
-To build ELF object files for usage with the elf package, you must use distinct
-sections (`SEC("...")`). Currently supported are:
+To build ELF object files for use with the elf package, you must use specific
+sections (`SEC("...")`). The following are currently supported:
 
 * `kprobe/...`
 * `cgroup/skb`
@@ -36,8 +37,8 @@ sections (`SEC("...")`). Currently supported are:
 * `tracepoint...`
 * `uprobe/...` and `uretprobe/...`
 
-Map definitions must correspond to `bpf_map_def` from [the elf package](https://github.com/iovisor/gobpf/blob/master/elf/include/bpf_map.h)
-Otherwise you will encounter an error like `only one map with size 280 bytes allowed per section (check bpf_map_def)`.
+Map definitions must correspond to `bpf_map_def` from [the elf package](https://github.com/iovisor/gobpf/blob/master/elf/include/bpf_map.h).
+Otherwise, you will encounter an error like `only one map with size 280 bytes allowed per section (check bpf_map_def)`.
 
 The [Cilium](https://github.com/cilium/cilium) BPF docs contain helpful info
 for using clang/LLVM to compile programs into elf object files:
@@ -48,7 +49,8 @@ for a real world example.
 
 ## Examples
 
-Example code can be found in the `examples/` directory, e.g.
+Sample code can be found in the `examples/` directory. Examples can be run as
+follows:
 
 ```
 sudo -E go run examples/bcc/perf/perf.go
