@@ -171,7 +171,6 @@ type RawTracepointProgram struct {
 	Name  string
 	insns *C.struct_bpf_insn
 	fd    int
-	efd   int
 }
 
 // SchedProgram represents a traffic classifier program
@@ -705,6 +704,15 @@ func (b *Module) closeTracepointPrograms() error {
 	return nil
 }
 
+func (b *Module) closeRawTracepointPrograms() error {
+	for _, program := range b.rawTracepointPrograms {
+		if err := syscall.Close(program.fd); err != nil {
+			return fmt.Errorf("error closing raw tracepoint program fd: %v", err)
+		}
+	}
+	return nil
+}
+
 func (b *Module) closeCgroupPrograms() error {
 	for _, program := range b.cgroupPrograms {
 		if err := syscall.Close(program.fd); err != nil {
@@ -803,6 +811,9 @@ func (b *Module) CloseExt(options map[string]CloseOptions) error {
 		return err
 	}
 	if err := b.closeTracepointPrograms(); err != nil {
+		return err
+	}
+	if err := b.closeRawTracepointPrograms(); err != nil {
 		return err
 	}
 	if err := b.closeSocketFilters(); err != nil {
