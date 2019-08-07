@@ -89,6 +89,17 @@ int bpf_detach_socket(int sock, int fd)
 {
 	return setsockopt(sock, SOL_SOCKET, SO_DETACH_BPF, &fd, sizeof(fd));
 }
+
+int bpf_attach_raw_tracepoint(int prog_fd, char *tp_name)
+{
+	union bpf_attr attr;
+
+	bzero(&attr, sizeof(attr));
+	attr.raw_tracepoint.name = ptr_to_u64(tp_name);
+	attr.raw_tracepoint.prog_fd = prog_fd;
+
+	return syscall(__NR_bpf, BPF_RAW_TRACEPOINT_OPEN, &attr, sizeof(attr));
+}
 */
 import "C"
 
@@ -97,14 +108,15 @@ type Module struct {
 	fileReader io.ReaderAt
 	file       *elf.File
 
-	log                []byte
-	maps               map[string]*Map
-	probes             map[string]*Kprobe
-	uprobes            map[string]*Uprobe
-	cgroupPrograms     map[string]*CgroupProgram
-	socketFilters      map[string]*SocketFilter
-	tracepointPrograms map[string]*TracepointProgram
-	schedPrograms      map[string]*SchedProgram
+	log                   []byte
+	maps                  map[string]*Map
+	probes                map[string]*Kprobe
+	uprobes               map[string]*Uprobe
+	cgroupPrograms        map[string]*CgroupProgram
+	socketFilters         map[string]*SocketFilter
+	tracepointPrograms    map[string]*TracepointProgram
+	rawTracepointPrograms map[string]*RawTracepointProgram
+	schedPrograms         map[string]*SchedProgram
 
 	compatProbe bool // try to be automatically convert function names depending on kernel versions (SyS_ and __x64_sys_)
 }
@@ -155,6 +167,14 @@ type TracepointProgram struct {
 	efd   int
 }
 
+// RawTracepointProgram represents a tracepoint program
+type RawTracepointProgram struct {
+	Name  string
+	insns *C.struct_bpf_insn
+	fd    int
+	efd   int
+}
+
 // SchedProgram represents a traffic classifier program
 type SchedProgram struct {
 	Name  string
@@ -164,13 +184,14 @@ type SchedProgram struct {
 
 func newModule() *Module {
 	return &Module{
-		probes:             make(map[string]*Kprobe),
-		uprobes:            make(map[string]*Uprobe),
-		cgroupPrograms:     make(map[string]*CgroupProgram),
-		socketFilters:      make(map[string]*SocketFilter),
-		tracepointPrograms: make(map[string]*TracepointProgram),
-		schedPrograms:      make(map[string]*SchedProgram),
-		log:                make([]byte, 524288),
+		probes:                make(map[string]*Kprobe),
+		uprobes:               make(map[string]*Uprobe),
+		cgroupPrograms:        make(map[string]*CgroupProgram),
+		socketFilters:         make(map[string]*SocketFilter),
+		tracepointPrograms:    make(map[string]*TracepointProgram),
+		rawTracepointPrograms: make(map[string]*RawTracepointProgram),
+		schedPrograms:         make(map[string]*SchedProgram),
+		log:                   make([]byte, 524288),
 	}
 }
 
@@ -351,6 +372,25 @@ func (b *Module) EnableTracepoint(secName string) error {
 
 	prog.efd, err = perfEventOpenTracepoint(tracepointId, progFd)
 	return err
+}
+
+func (b *Module) AttachRawTracepoint(secName string) error {
+	prog, ok := b.rawTracepointPrograms[secName]
+	if !ok {
+		return fmt.Errorf("no such raw tracepoint program %q", secName)
+	}
+	progFd := prog.fd
+
+	name := strings.Split(secName, "raw_tracepoint/")
+
+	tpNameCS := C.CString(name[1])
+	res, err := C.bpf_attach_raw_tracepoint(C.int(progFd), tpNameCS)
+	C.free(unsafe.Pointer(tpNameCS))
+
+	if res < 0 {
+		return fmt.Errorf("failed to attach raw tracepoint: %v", err)
+	}
+	return nil
 }
 
 // IterKprobes returns a channel that emits the kprobes that included in the
