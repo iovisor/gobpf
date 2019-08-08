@@ -95,7 +95,7 @@ int bpf_attach_raw_tracepoint(int prog_fd, char *tp_name)
 	union bpf_attr attr;
 
 	bzero(&attr, sizeof(attr));
-	attr.raw_tracepoint.name = ptr_to_u64(tp_name);
+	attr.raw_tracepoint.name = (__u64) tp_name;
 	attr.raw_tracepoint.prog_fd = prog_fd;
 
 	return syscall(__NR_bpf, BPF_RAW_TRACEPOINT_OPEN, &attr, sizeof(attr));
