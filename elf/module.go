@@ -174,6 +174,10 @@ type RawTracepointProgram struct {
 	fd    int
 }
 
+func (prog *RawTracepointProgram) Fd() int {
+	return prog.fd
+}
+
 // SchedProgram represents a traffic classifier program
 type SchedProgram struct {
 	Name  string
@@ -190,7 +194,7 @@ func newModule() *Module {
 		tracepointPrograms:    make(map[string]*TracepointProgram),
 		rawTracepointPrograms: make(map[string]*RawTracepointProgram),
 		schedPrograms:         make(map[string]*SchedProgram),
-		log:                   make([]byte, 524288),
+		log:                   make([]byte, 2524288),
 	}
 }
 
@@ -204,6 +208,10 @@ func NewModuleFromReader(fileReader io.ReaderAt) *Module {
 	module := newModule()
 	module.fileReader = fileReader
 	return module
+}
+
+func (m *Module) RawTracePointPrograms() map[string]*RawTracepointProgram {
+	return m.rawTracepointPrograms
 }
 
 var kprobeIDNotExist error = errors.New("kprobe id file doesn't exist")
