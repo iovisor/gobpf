@@ -24,6 +24,8 @@ import (
 	"sort"
 	"syscall"
 	"unsafe"
+
+	"github.com/iovisor/gobpf/pkg/cpuonline"
 )
 
 /*
@@ -199,6 +201,68 @@ func InitPerfMap(b *Module, mapName string, receiverChan chan []byte, lostChan c
 		lostChan:     lostChan,
 		pollStop:     make(chan struct{}),
 	}, nil
+}
+
+func (pm *PerfMap) SwapAndDumpBackward() (out [][]byte) {
+	m, ok := pm.program.maps[pm.name]
+	if !ok {
+		// should not happen or only when pm.program is
+		// suddenly changed
+		panic(fmt.Sprintf("cannot find map %q", pm.name))
+	}
+
+	// step 1: create a new perf ring buffer
+	pmuFds, headers, bases, err := createPerfRingBuffer(true, true, pm.pageCount)
+	if err != nil {
+		return
+	}
+
+	cpus, err := cpuonline.Get()
+	if err != nil {
+	return
+	}
+
+	// step 2: swap file descriptors
+	// after it the ebpf programs will write to the new map
+	for index, cpu := range cpus {
+		// assign perf fd to map
+		err := pm.program.UpdateElement(m, unsafe.Pointer(&cpu), unsafe.Pointer(&pmuFds[index]), 0)
+		if err != nil {
+			return
+		}
+	}
+
+	// step 3: dump old buffer
+	out = pm.DumpBackward()
+
+	// step4: close old buffer
+	// unmap
+	for _, base := range m.bases {
+		err := syscall.Munmap(base)
+		if err != nil {
+			return
+		}
+	}
+
+	for _, fd := range m.pmuFDs {
+		// disable
+		_, _, err2 := syscall.Syscall(syscall.SYS_IOCTL, uintptr(fd), C.PERF_EVENT_IOC_DISABLE, 0)
+		if err2 != 0 {
+			return
+		}
+
+		// close
+		if err := syscall.Close(int(fd)); err != nil {
+			return
+		}
+	}
+
+	// update file descriptors to new perf ring buffer
+	m.pmuFDs = pmuFds
+	m.headers = headers
+	m.bases = bases
+
+	return
 }
 
 func (pm *PerfMap) DumpBackward() (out [][]byte) {
