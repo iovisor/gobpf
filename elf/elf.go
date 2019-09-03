@@ -802,13 +802,55 @@ func (b *Module) Load(parameters map[string]SectionParams) error {
 	return b.initializePerfMaps(parameters)
 }
 
+func createPerfRingBuffer(backward bool, pageCount int) ([]C.int, []*C.struct_perf_event_mmap_page, error) {
+	pageSize := os.Getpagesize()
+
+	cpus, err := cpuonline.Get()
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to determine online cpus: %v", err)
+	}
+
+	pmuFds := make([]C.int, len(cpus))
+	headers := make([]*C.struct_perf_event_mmap_page, len(cpus))
+
+	for i, cpu := range cpus {
+		cpuC := C.int(cpu)
+		backwardC := C.int(0)
+		if backward {
+			backwardC = 1
+		}
+		pmuFD, err := C.perf_event_open_map(-1 /* pid */, cpuC /* cpu */, -1 /* group_fd */, C.PERF_FLAG_FD_CLOEXEC, backwardC)
+		if pmuFD < 0 {
+			return nil, nil, fmt.Errorf("perf_event_open for map error: %v", err)
+		}
+
+		// mmap
+		mmapSize := pageSize * (pageCount + 1)
+
+		base, err := syscall.Mmap(int(pmuFD), 0, mmapSize, syscall.PROT_READ|syscall.PROT_WRITE, syscall.MAP_SHARED)
+		if err != nil {
+			return nil, nil, fmt.Errorf("mmap error: %v", err)
+		}
+
+		// enable
+		_, _, err2 := syscall.Syscall(syscall.SYS_IOCTL, uintptr(pmuFD), C.PERF_EVENT_IOC_ENABLE, 0)
+		if err2 != 0 {
+			return nil, nil, fmt.Errorf("error enabling perf event: %v", err2)
+		}
+
+		pmuFds[i] = pmuFD
+		headers[i] = (*C.struct_perf_event_mmap_page)(unsafe.Pointer(&base[0]))
+	}
+
+	return pmuFds, headers, nil
+}
+
 func (b *Module) initializePerfMaps(parameters map[string]SectionParams) error {
 	for name, m := range b.maps {
 		if m.m != nil && m.m.def._type != C.BPF_MAP_TYPE_PERF_EVENT_ARRAY {
 			continue
 		}
 
-		pageSize := os.Getpagesize()
 		b.maps[name].pageCount = 8 // reasonable default
 		backward := false
 
@@ -828,45 +870,27 @@ func (b *Module) initializePerfMaps(parameters map[string]SectionParams) error {
 			}
 		}
 
+
+		pmuFds, headers, err := createPerfRingBuffer(backward, b.maps[name].pageCount)
+		if (err != nil) {
+			return fmt.Errorf("cannot create perfring map %v", err)
+		}
+
 		cpus, err := cpuonline.Get()
 		if err != nil {
 			return fmt.Errorf("failed to determine online cpus: %v", err)
 		}
 
-		for _, cpu := range cpus {
-			cpuC := C.int(cpu)
-			backwardC := C.int(0)
-			if backward {
-				backwardC = 1
-			}
-			pmuFD, err := C.perf_event_open_map(-1 /* pid */, cpuC /* cpu */, -1 /* group_fd */, C.PERF_FLAG_FD_CLOEXEC, backwardC)
-			if pmuFD < 0 {
-				return fmt.Errorf("perf_event_open for map error: %v", err)
-			}
-
-			// mmap
-			mmapSize := pageSize * (b.maps[name].pageCount + 1)
-
-			base, err := syscall.Mmap(int(pmuFD), 0, mmapSize, syscall.PROT_READ|syscall.PROT_WRITE, syscall.MAP_SHARED)
-			if err != nil {
-				return fmt.Errorf("mmap error: %v", err)
-			}
-
-			// enable
-			_, _, err2 := syscall.Syscall(syscall.SYS_IOCTL, uintptr(pmuFD), C.PERF_EVENT_IOC_ENABLE, 0)
-			if err2 != 0 {
-				return fmt.Errorf("error enabling perf event: %v", err2)
-			}
-
+		for index, cpu := range cpus {
 			// assign perf fd to map
-			ret, err := C.bpf_update_element(C.int(b.maps[name].m.fd), unsafe.Pointer(&cpuC), unsafe.Pointer(&pmuFD), C.BPF_ANY)
+			ret, err := C.bpf_update_element(C.int(b.maps[name].m.fd), unsafe.Pointer(&cpu), unsafe.Pointer(&pmuFds[index]), C.BPF_ANY)
 			if ret != 0 {
-				return fmt.Errorf("cannot assign perf fd to map %q: %v (cpu %d)", name, err, cpuC)
+				return fmt.Errorf("cannot assign perf fd to map %q: %v (cpu %d)", name, err, index)
 			}
-
-			b.maps[name].pmuFDs = append(b.maps[name].pmuFDs, pmuFD)
-			b.maps[name].headers = append(b.maps[name].headers, (*C.struct_perf_event_mmap_page)(unsafe.Pointer(&base[0])))
 		}
+
+		b.maps[name].pmuFDs = pmuFds
+		b.maps[name].headers = headers
 	}
 
 	return nil
