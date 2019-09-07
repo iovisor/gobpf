@@ -269,7 +269,7 @@ func (bpf *Module) attachUProbe(evName string, attachType uint32, path string, a
 	return nil
 }
 
-// QuickAttachKprobe attaches a kprobe fd to a function.
+// QuickAttachKretprobe attaches a kretprobe to a function.
 func (bpf *Module) QuickAttachKretprobe(fnName string, maxActive int) error {
 	krName := "kretprobe__" + fnName
 	evName := "r_" + kprobeRegexp.ReplaceAllString(fnName, "_")
@@ -281,7 +281,7 @@ func (bpf *Module) QuickAttachKretprobe(fnName string, maxActive int) error {
 	return bpf.attachProbe(evName, BPF_PROBE_RETURN, fnName, fd, maxActive)
 }
 
-// QuickAttachKprobe attaches a kprobe fd to a function.
+// QuickAttachKprobe attaches a kprobe to a function.
 func (bpf *Module) QuickAttachKprobe(fnName string, maxActive int) error {
 	kpName := "kprobe__" + fnName
 	evName := "p_" + kprobeRegexp.ReplaceAllString(fnName, "_")
