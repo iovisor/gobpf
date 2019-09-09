@@ -1,4 +1,4 @@
-The file at /elf/include/bpf.h is a copy of the Linux kernel file
+The file at /elf/bpf.h is a copy of the Linux kernel file
 /include/uapi/linux/bpf.h, retrieved from version 4.17, Git commit
 36f9814, available at
 https://raw.githubusercontent.com/torvalds/linux/36f9814a494a874d5a0f44843544b4b2539022db/include/uapi/linux/bpf.h.

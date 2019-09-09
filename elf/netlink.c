@@ -1,7 +1,9 @@
 // SPDX-License-Identifier: (LGPL-2.1 OR BSD-2-Clause)
 /* Copyright (c) 2018 Facebook */
 
+#include <stdbool.h>
 #include <stdlib.h>
+#include <stdio.h>
 #include <memory.h>
 #include <unistd.h>
 #include <linux/rtnetlink.h>
@@ -9,9 +11,8 @@
 #include <errno.h>
 #include <time.h>
 
-#include "include/bpf.h"
-#include "include/libbpf.h"
-#include "include/nlattr.h"
+#include "libbpf.h"
+#include "nlattr.h"
 
 #ifndef SOL_NETLINK
 #define SOL_NETLINK 270

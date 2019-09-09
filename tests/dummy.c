@@ -2,8 +2,8 @@
  * Compiled with './build'
  */
 
-#include "../elf/include/bpf.h"
-#include "../elf/include/bpf_map.h"
+#include "../elf/bpf.h"
+#include "../elf/bpf_map.h"
 
 #define SEC(NAME) __attribute__((section(NAME), used))
 

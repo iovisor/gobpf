@@ -15,7 +15,7 @@ where objects are shared via Unix domain sockets.
 ## Different pinning options
 
 `C.bpf_map_def.pinning` (defined in
-[bpf.h](https://github.com/iovisor/gobpf/blob/446e57e0e24e/elf/include/bpf.h#L616))
+[bpf.h](https://github.com/iovisor/gobpf/blob/81109c30cbe2/elf/bpf.h#L616))
 can be set to one the following pinning options.
 
 * `PIN_NONE` : object is not pinned

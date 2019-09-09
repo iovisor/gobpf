@@ -38,8 +38,8 @@ import (
 #include <string.h>
 #include <stdlib.h>
 #include <stdbool.h>
-#include "include/bpf.h"
-#include "include/libbpf.h"
+#include "bpf.h"
+#include "libbpf.h"
 #include <linux/perf_event.h>
 #include <linux/unistd.h>
 #include <sys/socket.h>
@@ -51,8 +51,8 @@ import (
 #include <linux/if_link.h>
 #include <linux/rtnetlink.h>
 
-#include "lib/nlattr.c"
-#include "lib/netlink.c"
+#include "netlink.h"
+#include "nlattr.h"
 
 static int perf_event_open_tracepoint(int tracepoint_id, int pid, int cpu,
                            int group_fd, unsigned long flags)

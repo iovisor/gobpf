@@ -49,8 +49,8 @@ import (
 #include <assert.h>
 #include <sys/socket.h>
 #include <linux/unistd.h>
-#include "include/bpf.h"
-#include "include/bpf_map.h"
+#include "bpf.h"
+#include "bpf_map.h"
 #include <poll.h>
 #include <linux/perf_event.h>
 #include <sys/resource.h>
@@ -265,7 +265,7 @@ const (
 
 	// Object pin settings should correspond to those of other projects, e.g.:
 	// https://git.kernel.org/pub/scm/linux/kernel/git/shemminger/iproute2.git/tree/include/bpf_elf.h#n25
-	// Also it should be self-consistent with `elf/include/bpf.h` in the same repository.
+	// Also it should be self-consistent with `elf/bpf.h` in the same repository.
 	PIN_NONE      = 0
 	PIN_OBJECT_NS = 1
 	PIN_GLOBAL_NS = 2
