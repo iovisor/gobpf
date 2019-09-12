@@ -67,7 +67,7 @@ func TestUpdateSecName(t *testing.T) {
 			expected:    func() string { return module.schedPrograms["schedProgram"].Name },
 		},
 	} {
-		err := module.UpdateMappingName(test.mappingType, test.oldName, test.newName)
+		err := module.UpdateSecName(test.mappingType, test.oldName, test.newName)
 		if err != nil {
 			t.Fatalf("error occured while using UpdateMappingName function: %s", err)
 		}

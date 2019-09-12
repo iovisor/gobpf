@@ -784,10 +784,10 @@ func (b *Module) CloseExt(options map[string]CloseOptions) error {
 	return nil
 }
 
-// UpdateMappingName takes a mapping type which represents one of the mappings that current module stores,
+// UpdateSecName takes a mapping type which represents one of the mappings that current module stores,
 // and update the name on the section object from "oldName" to "newName".
 // Note that this doesn't change the key in the mapping
-func (b *Module) UpdateMappingName(mappingType MappingType, oldName, newName string) error {
+func (b *Module) UpdateSecName(mappingType MappingType, oldName, newName string) error {
 	found := false
 
 	switch mappingType {
