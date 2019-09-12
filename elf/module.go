@@ -827,7 +827,7 @@ func (b *Module) UpdateSecName(mappingType MappingType, oldName, newName string)
 			found = true
 		}
 	default:
-		return fmt.Errorf("no such mapping exists in module: %v", MappingType(mappingType))
+		return fmt.Errorf("no such mapping exists in module: %v", mappingType)
 	}
 
 	if !found {
