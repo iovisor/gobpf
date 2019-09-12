@@ -91,6 +91,19 @@ int bpf_detach_socket(int sock, int fd)
 */
 import "C"
 
+// MappingType is a enum value representing types of mappings the module stores
+type MappingType int
+
+const (
+	TypeMap MappingType = iota
+	TypeProbe
+	TypeUprobe
+	TypeCgroupProgram
+	TypeSocketFilter
+	TypeTracepointProgram
+	TypeSchedProgram
+)
+
 type Module struct {
 	fileName   string
 	fileReader io.ReaderAt
@@ -768,5 +781,58 @@ func (b *Module) CloseExt(options map[string]CloseOptions) error {
 	if err := b.closeSocketFilters(); err != nil {
 		return err
 	}
+	return nil
+}
+
+// UpdateMappingName takes a mapping type which represents one of the mappings that current module stores,
+// and update the name on the section object from "oldName" to "newName".
+// Note that this doesn't change the key in the mapping
+func (b *Module) UpdateMappingName(mappingType MappingType, oldName, newName string) error {
+	found := false
+
+	switch mappingType {
+	case TypeMap:
+		if sec, ok := b.maps[oldName]; ok {
+			sec.Name = newName
+			found = true
+		}
+	case TypeProbe:
+		if sec, ok := b.probes[oldName]; ok {
+			sec.Name = newName
+			found = true
+		}
+	case TypeUprobe:
+		if sec, ok := b.uprobes[oldName]; ok {
+			sec.Name = newName
+			found = true
+		}
+	case TypeCgroupProgram:
+		if sec, ok := b.cgroupPrograms[oldName]; ok {
+			sec.Name = newName
+			found = true
+		}
+	case TypeSocketFilter:
+		if sec, ok := b.socketFilters[oldName]; ok {
+			sec.Name = newName
+			found = true
+		}
+	case TypeTracepointProgram:
+		if sec, ok := b.tracepointPrograms[oldName]; ok {
+			sec.Name = newName
+			found = true
+		}
+	case TypeSchedProgram:
+		if sec, ok := b.schedPrograms[oldName]; ok {
+			sec.Name = newName
+			found = true
+		}
+	default:
+		return fmt.Errorf("no such mapping exists in module: %v", MappingType(mappingType))
+	}
+
+	if !found {
+		return fmt.Errorf("no such section \"%s\" exists in mapping %v", oldName, mappingType)
+	}
+
 	return nil
 }
