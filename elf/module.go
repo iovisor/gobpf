@@ -295,22 +295,24 @@ func (b *Module) EnableOptionCompatProbe() {
 // For kprobes, maxactive is ignored.
 func (b *Module) EnableKprobe(secName string, maxactive int) error {
 	var probeType, funcName string
-	isKretprobe := strings.HasPrefix(secName, "kretprobe/")
 	probe, ok := b.probes[secName]
 	if !ok {
 		return fmt.Errorf("no such kprobe %q", secName)
 	}
+
+	probeSecName := probe.Name
+	isKretprobe := strings.HasPrefix(probeSecName, "kretprobe/")
 	progFd := probe.fd
 	var maxactiveStr string
 	if isKretprobe {
 		probeType = "r"
-		funcName = strings.TrimPrefix(secName, "kretprobe/")
+		funcName = strings.TrimPrefix(probeSecName, "kretprobe/")
 		if maxactive > 0 {
 			maxactiveStr = fmt.Sprintf("%d", maxactive)
 		}
 	} else {
 		probeType = "p"
-		funcName = strings.TrimPrefix(secName, "kprobe/")
+		funcName = strings.TrimPrefix(probeSecName, "kprobe/")
 	}
 	eventName := probeType + funcName
 
@@ -348,10 +350,11 @@ func (b *Module) EnableTracepoint(secName string) error {
 		return fmt.Errorf("no such tracepoint program %q", secName)
 	}
 	progFd := prog.fd
+	traceSecName := prog.Name
 
-	tracepointGroup := strings.SplitN(secName, "/", 3)
+	tracepointGroup := strings.SplitN(traceSecName, "/", 3)
 	if len(tracepointGroup) != 3 {
-		return fmt.Errorf("invalid section name %q, expected tracepoint/category/name", secName)
+		return fmt.Errorf("invalid section name %q, expected tracepoint/category/name", traceSecName)
 	}
 	category := tracepointGroup[1]
 	name := tracepointGroup[2]
