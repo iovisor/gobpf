@@ -774,13 +774,13 @@ func (b *Module) CloseExt(options map[string]CloseOptions) error {
 	return nil
 }
 
-// UpdateKprobeSecName updates the name on the kprobe section object from "oldName" to "newName".
-// Note that this doesn't change the key in the mapping
-func (b *Module) UpdateKprobeSecName(oldName, newName string) error {
-	if sec, ok := b.probes[oldName]; ok {
-		sec.Name = newName
+// UpdateKprobeNameForHandler takes a handler and try to find the corresponding kprobe from a previously loaded mapping,
+// if found then update the kprobe name to "newKprobeName"
+func (b *Module) UpdateKprobeNameForHandler(handler, newKprobeName string) error {
+	if sec, ok := b.probes[handler]; ok {
+		sec.Name = newKprobeName
 	} else {
-		return fmt.Errorf("no such section \"%s\" exists in kprobe mapping", oldName)
+		return fmt.Errorf("no such handler \"%s\" exists in kprobe mapping", handler)
 	}
 	return nil
 }
