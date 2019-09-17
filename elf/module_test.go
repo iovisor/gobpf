@@ -31,3 +31,12 @@ func TestUpdateKprobeNameForHandler(t *testing.T) {
 		}
 	}
 }
+
+func TestEnableKprobesError(t *testing.T) {
+	module := newModule()
+	module.probes["probe"] = &Kprobe{Name: "probe"}
+	module.probes["another_probe"] = &Kprobe{Name: "probe"}
+	if err := module.EnableKprobes(1); err == nil {
+		t.Fatalf("An error should trigger if two handlers are mapping to a same kprobe function")
+	}
+}

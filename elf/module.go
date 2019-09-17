@@ -372,6 +372,17 @@ func (b *Module) IterKprobes() <-chan *Kprobe {
 // value in maxactive will be applied to all the kretprobes.
 func (b *Module) EnableKprobes(maxactive int) error {
 	var err error
+	// a map to check if there are 2 handlers that are mapping to
+	// the same kprobe function name. If so, we can't reliably determine
+	// which one to use, so we return an error
+	kprobeForHandlers := map[string]string{}
+	for handler, kprobe := range b.probes {
+		if h, ok := kprobeForHandlers[kprobe.Name]; ok {
+			return fmt.Errorf("found two handlers (%s and %s) mapping to the same kprobe function %s", h, handler, kprobe.Name)
+		} else {
+			kprobeForHandlers[kprobe.Name] = handler
+		}
+	}
 	for _, kprobe := range b.probes {
 		err = b.EnableKprobe(kprobe.Name, maxactive)
 		if err != nil {
