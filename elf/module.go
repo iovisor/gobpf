@@ -274,7 +274,7 @@ func (b *Module) EnableOptionCompatProbe() {
 	b.compatProbe = true
 }
 
-// EnableKprobe enables a kprobe/kretprobe identified by secName.
+// EnableKprobe uses secName to locate a probe, then enables a kprobe/kretprobe identified by probe name.
 // For kretprobes, you can configure the maximum number of instances
 // of the function that can be probed simultaneously with maxactive.
 // If maxactive is 0 it will be set to the default value: if CONFIG_PREEMPT is
@@ -287,20 +287,20 @@ func (b *Module) EnableKprobe(secName string, maxactive int) error {
 		return fmt.Errorf("no such kprobe %q", secName)
 	}
 
-	// use the section name on kprobe object to identify the one to use
-	probeSecName := probe.Name
-	isKretprobe := strings.HasPrefix(probeSecName, "kretprobe/")
+	// use the actual kprobe name on kprobe object to identify the one to use
+	probeName := probe.Name
+	isKretprobe := strings.HasPrefix(probeName, "kretprobe/")
 	progFd := probe.fd
 	var maxactiveStr string
 	if isKretprobe {
 		probeType = "r"
-		funcName = strings.TrimPrefix(probeSecName, "kretprobe/")
+		funcName = strings.TrimPrefix(probeName, "kretprobe/")
 		if maxactive > 0 {
 			maxactiveStr = fmt.Sprintf("%d", maxactive)
 		}
 	} else {
 		probeType = "p"
-		funcName = strings.TrimPrefix(probeSecName, "kprobe/")
+		funcName = strings.TrimPrefix(probeName, "kprobe/")
 	}
 	eventName := probeType + funcName
 
@@ -786,7 +786,7 @@ func (b *Module) CloseExt(options map[string]CloseOptions) error {
 }
 
 // UpdateKprobeNameForHandler takes a handler and try to find the corresponding kprobe from a previously loaded mapping,
-// if found then update the kprobe name to "newKprobeName"
+// if found then update the kprobe name to the value of newKprobeName
 func (b *Module) UpdateKprobeNameForHandler(handler, newKprobeName string) error {
 	if sec, ok := b.probes[handler]; ok {
 		sec.Name = newKprobeName
