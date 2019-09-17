@@ -6,28 +6,28 @@ import (
 	"testing"
 )
 
-func TestUpdateKprobeNameForHandler(t *testing.T) {
+func TestSetKprobeForSection(t *testing.T) {
 	module := newModule()
 	module.probes["probe"] = &Kprobe{Name: "probe"}
 
 	for _, test := range []struct {
-		handlerName string
+		sectionName string
 		kprobeName  string
 		actual      func() string
 	}{
 		{
-			handlerName: "probe",
+			sectionName: "probe",
 			kprobeName:  "newProbe",
 			actual:      func() string { return module.probes["probe"].Name },
 		},
 	} {
-		err := module.UpdateKprobeNameForHandler(test.handlerName, test.kprobeName)
+		err := module.SetKprobeForSection(test.sectionName, test.kprobeName)
 		if err != nil {
-			t.Fatalf("error occured while using UpdateKprobeNameForHandler function: %s", err)
+			t.Fatalf("error occured while using SetKprobeForSection function: %s", err)
 		}
 
 		if test.actual() != test.kprobeName {
-			t.Fatalf("UpdateKprobeNameForHandler function didn't update correctly, expected: %s, actual value: %s", test.kprobeName, test.actual())
+			t.Fatalf("SetKprobeForSection function didn't update correctly, expected: %s, actual value: %s", test.kprobeName, test.actual())
 		}
 	}
 }

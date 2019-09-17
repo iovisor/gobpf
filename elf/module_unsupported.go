@@ -48,6 +48,6 @@ func (b *Module) AttachProgram(cgroupProg *CgroupProgram, cgroupPath string, att
 	return fmt.Errorf("not supported")
 }
 
-func (b *Module) UpdateKprobeNameForHandler(handler, newKprobeName string) error {
+func (b *Module) SetKprobeForSection(sectionName, newKprobeName string) error {
 	return fmt.Errorf("not supported")
 }

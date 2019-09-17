@@ -372,15 +372,15 @@ func (b *Module) IterKprobes() <-chan *Kprobe {
 // value in maxactive will be applied to all the kretprobes.
 func (b *Module) EnableKprobes(maxactive int) error {
 	var err error
-	// a map to check if there are 2 handlers that are mapping to
+	// a map to check if there are 2 sections that are mapping to
 	// the same kprobe function name. If so, we can't reliably determine
 	// which one to use, so we return an error
-	kprobeForHandlers := map[string]string{}
-	for handler, kprobe := range b.probes {
-		if h, ok := kprobeForHandlers[kprobe.Name]; ok {
-			return fmt.Errorf("found two handlers (%s and %s) mapping to the same kprobe function %s", h, handler, kprobe.Name)
+	kprobeForSections := map[string]string{}
+	for section, kprobe := range b.probes {
+		if h, ok := kprobeForSections[kprobe.Name]; ok {
+			return fmt.Errorf("found two sections (%s and %s) mapping to the same kprobe function %s", h, section, kprobe.Name)
 		} else {
-			kprobeForHandlers[kprobe.Name] = handler
+			kprobeForSections[kprobe.Name] = section
 		}
 	}
 	for _, kprobe := range b.probes {
@@ -785,13 +785,13 @@ func (b *Module) CloseExt(options map[string]CloseOptions) error {
 	return nil
 }
 
-// UpdateKprobeNameForHandler takes a handler and try to find the corresponding kprobe from a previously loaded mapping,
+// SetKprobeForSection takes a section name and try to find the corresponding kprobe from a previously loaded mapping,
 // if found then update the kprobe name to the value of newKprobeName
-func (b *Module) UpdateKprobeNameForHandler(handler, newKprobeName string) error {
-	if sec, ok := b.probes[handler]; ok {
+func (b *Module) SetKprobeForSection(sectionName, newKprobeName string) error {
+	if sec, ok := b.probes[sectionName]; ok {
 		sec.Name = newKprobeName
 	} else {
-		return fmt.Errorf("no such handler \"%s\" exists in kprobe mapping", handler)
+		return fmt.Errorf("no such section name \"%s\" exists in kprobe mapping", sectionName)
 	}
 	return nil
 }
