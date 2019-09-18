@@ -47,3 +47,7 @@ func (b *Module) Kprobe(name string) *Kprobe {
 func (b *Module) AttachProgram(cgroupProg *CgroupProgram, cgroupPath string, attachType AttachType) error {
 	return fmt.Errorf("not supported")
 }
+
+func (b *Module) SetKprobeForSection(sectionName, newKprobeName string) error {
+	return fmt.Errorf("not supported")
+}

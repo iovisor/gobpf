@@ -274,7 +274,7 @@ func (b *Module) EnableOptionCompatProbe() {
 	b.compatProbe = true
 }
 
-// EnableKprobe enables a kprobe/kretprobe identified by secName.
+// EnableKprobe uses secName to locate a probe, then enables a kprobe/kretprobe identified by probe name.
 // For kretprobes, you can configure the maximum number of instances
 // of the function that can be probed simultaneously with maxactive.
 // If maxactive is 0 it will be set to the default value: if CONFIG_PREEMPT is
@@ -282,22 +282,25 @@ func (b *Module) EnableOptionCompatProbe() {
 // For kprobes, maxactive is ignored.
 func (b *Module) EnableKprobe(secName string, maxactive int) error {
 	var probeType, funcName string
-	isKretprobe := strings.HasPrefix(secName, "kretprobe/")
 	probe, ok := b.probes[secName]
 	if !ok {
 		return fmt.Errorf("no such kprobe %q", secName)
 	}
+
+	// use the actual kprobe name on kprobe object to identify the one to use
+	probeName := probe.Name
+	isKretprobe := strings.HasPrefix(probeName, "kretprobe/")
 	progFd := probe.fd
 	var maxactiveStr string
 	if isKretprobe {
 		probeType = "r"
-		funcName = strings.TrimPrefix(secName, "kretprobe/")
+		funcName = strings.TrimPrefix(probeName, "kretprobe/")
 		if maxactive > 0 {
 			maxactiveStr = fmt.Sprintf("%d", maxactive)
 		}
 	} else {
 		probeType = "p"
-		funcName = strings.TrimPrefix(secName, "kprobe/")
+		funcName = strings.TrimPrefix(probeName, "kprobe/")
 	}
 	eventName := probeType + funcName
 
@@ -369,8 +372,19 @@ func (b *Module) IterKprobes() <-chan *Kprobe {
 // value in maxactive will be applied to all the kretprobes.
 func (b *Module) EnableKprobes(maxactive int) error {
 	var err error
-	for _, kprobe := range b.probes {
-		err = b.EnableKprobe(kprobe.Name, maxactive)
+	// a map to check if there are 2 sections mapping to
+	// the same kprobe function name. If so, we can't reliably determine
+	// which one to use, so we return an error
+	kprobeForSections := map[string]string{}
+	for section, kprobe := range b.probes {
+		if h, ok := kprobeForSections[kprobe.Name]; ok {
+			return fmt.Errorf("found two sections (%s and %s) mapping to the same kprobe function %s", h, section, kprobe.Name)
+		} else {
+			kprobeForSections[kprobe.Name] = section
+		}
+	}
+	for section := range b.probes {
+		err = b.EnableKprobe(section, maxactive)
 		if err != nil {
 			return err
 		}
@@ -767,6 +781,17 @@ func (b *Module) CloseExt(options map[string]CloseOptions) error {
 	}
 	if err := b.closeSocketFilters(); err != nil {
 		return err
+	}
+	return nil
+}
+
+// SetKprobeForSection takes a section name and try to find the corresponding kprobe from a previously loaded mapping,
+// if found then update the kprobe name to the value of newKprobeName
+func (b *Module) SetKprobeForSection(sectionName, newKprobeName string) error {
+	if sec, ok := b.probes[sectionName]; ok {
+		sec.Name = newKprobeName
+	} else {
+		return fmt.Errorf("no such section name \"%s\" exists in kprobe mapping", sectionName)
 	}
 	return nil
 }
