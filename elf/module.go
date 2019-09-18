@@ -372,7 +372,7 @@ func (b *Module) IterKprobes() <-chan *Kprobe {
 // value in maxactive will be applied to all the kretprobes.
 func (b *Module) EnableKprobes(maxactive int) error {
 	var err error
-	// a map to check if there are 2 sections that are mapping to
+	// a map to check if there are 2 sections mapping to
 	// the same kprobe function name. If so, we can't reliably determine
 	// which one to use, so we return an error
 	kprobeForSections := map[string]string{}
@@ -383,8 +383,8 @@ func (b *Module) EnableKprobes(maxactive int) error {
 			kprobeForSections[kprobe.Name] = section
 		}
 	}
-	for _, kprobe := range b.probes {
-		err = b.EnableKprobe(kprobe.Name, maxactive)
+	for section, kprobe := range b.probes {
+		err = b.EnableKprobe(section, maxactive)
 		if err != nil {
 			return err
 		}
