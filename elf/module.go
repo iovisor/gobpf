@@ -383,7 +383,7 @@ func (b *Module) EnableKprobes(maxactive int) error {
 			kprobeForSections[kprobe.Name] = section
 		}
 	}
-	for section, kprobe := range b.probes {
+	for section := range b.probes {
 		err = b.EnableKprobe(section, maxactive)
 		if err != nil {
 			return err
