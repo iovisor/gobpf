@@ -16,14 +16,16 @@ import (
 #include <linux/unistd.h>
 #include <linux/bpf.h>
 #include <stdlib.h>
+#include <string.h>
 #include <unistd.h>
 
 extern __u64 ptr_to_u64(void *);
 
 int bpf_pin_object(int fd, const char *pathname)
 {
-	union bpf_attr attr = {};
+	union bpf_attr attr;
 
+	memset(&attr, 0, sizeof(attr));
 	attr.pathname = ptr_to_u64((void *)pathname);
 	attr.bpf_fd = fd;
 

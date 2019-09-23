@@ -125,7 +125,8 @@ void create_bpf_obj_get(const char *pathname, void *attr)
 
 int get_pinned_obj_fd(const char *path)
 {
-	union bpf_attr attr = {};
+	union bpf_attr attr;
+	memset(&attr, 0, sizeof(attr));
 	create_bpf_obj_get(path, &attr);
 	return syscall(__NR_bpf, BPF_OBJ_GET, &attr, sizeof(attr));
 }
@@ -231,12 +232,13 @@ static int bpf_prog_load(enum bpf_prog_type prog_type,
 
 static int bpf_update_element(int fd, void *key, void *value, unsigned long long flags)
 {
-	union bpf_attr attr = {
-		.map_fd = fd,
-		.key = ptr_to_u64(key),
-		.value = ptr_to_u64(value),
-		.flags = flags,
-	};
+	union bpf_attr attr;
+
+	memset(&attr, 0, sizeof(attr));
+	attr.map_fd = fd;
+	attr.key = ptr_to_u64(key);
+	attr.value = ptr_to_u64(value);
+	attr.flags = flags;
 
 	return syscall(__NR_bpf, BPF_MAP_UPDATE_ELEM, &attr, sizeof(attr));
 }
