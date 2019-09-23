@@ -59,7 +59,7 @@ int bpf_prog_attach(int prog_fd, int target_fd, enum bpf_attach_type type)
 {
 	union bpf_attr attr;
 
-	bzero(&attr, sizeof(attr));
+	memset(&attr, 0, sizeof(attr));
 	attr.target_fd	   = target_fd;
 	attr.attach_bpf_fd = prog_fd;
 	attr.attach_type   = type;
@@ -71,7 +71,7 @@ int bpf_prog_detach(int prog_fd, int target_fd, enum bpf_attach_type type)
 {
 	union bpf_attr attr;
 
-	bzero(&attr, sizeof(attr));
+	memset(&attr, 0, sizeof(attr));
 	attr.target_fd	   = target_fd;
 	attr.attach_bpf_fd = prog_fd;
 	attr.attach_type   = type;
