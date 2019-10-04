@@ -219,7 +219,7 @@ func (pm *PerfMap) SwapAndDumpBackward() (out [][]byte) {
 
 	cpus, err := cpuonline.Get()
 	if err != nil {
-	return
+		return
 	}
 
 	// step 2: swap file descriptors
