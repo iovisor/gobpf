@@ -23,7 +23,7 @@ int bpf_prog_test_run(int fd, int repeat, char *data, int data_size,
 		      int *duration)
 {
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(4,12,0)
-	union bpf_attr attr = {};
+	union bpf_attr attr;
 	int ret;
 
 	memset(&attr, 0, sizeof(attr));
