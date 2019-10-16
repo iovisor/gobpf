@@ -35,6 +35,7 @@ import (
 /*
 #include <unistd.h>
 #include <strings.h>
+#include <string.h>
 #include <stdlib.h>
 #include "include/bpf.h"
 #include <linux/perf_event.h>
