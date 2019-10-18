@@ -661,3 +661,65 @@ func TestModuleLoadELF(t *testing.T) {
 	checkLookupElement(t, b)
 	checkProgTestRun(t, b)
 }
+
+func TestOptionalLoading(t *testing.T) {
+	var err error
+	kernelVersion, err = elf.CurrentKernelVersion()
+	if err != nil {
+		t.Fatalf("error getting current kernel version: %v", err)
+	}
+
+	dummyELF := "./tests/dummy.o"
+	if kernelVersion > kernelVersion410 {
+		dummyELF = "./tests/dummy-410.o"
+	} else if kernelVersion > kernelVersion48 {
+		dummyELF = "./tests/dummy-48.o"
+	} else if kernelVersion > kernelVersion46 {
+		dummyELF = "./tests/dummy-46.o"
+	}
+
+	var secParams = map[string]elf.SectionParams{
+		"maps/dummy_array_custom": elf.SectionParams{
+			PinPath: filepath.Join("gobpf-test", "testgroup1"),
+		},
+		"socket/dummy": elf.SectionParams{
+			Disabled: true,
+		},
+	}
+	var closeOptions = map[string]elf.CloseOptions{
+		"maps/dummy_array_custom": elf.CloseOptions{
+			Unpin:   true,
+			PinPath: filepath.Join("gobpf-test", "testgroup1"),
+		},
+	}
+
+	if err := bpffs.Mount(); err != nil {
+		t.Fatalf("error mounting bpf fs: %v", err)
+	}
+
+	b := elf.NewModule(dummyELF)
+	if b == nil {
+		t.Fatal("prog is nil")
+	}
+	if err := b.Load(secParams); err != nil {
+		t.Fatal(err)
+	}
+	defer func() {
+		if err := b.CloseExt(closeOptions); err != nil {
+			t.Fatal(err)
+		}
+	}()
+
+	// Let's make sure our socket filter was *not* loaded
+	// This is useful when you want to compile a single object file, but disable
+	// certain ELF sections for distributions that don't support certain eBPF programs
+	// Example: socket filters for RedHat/CentOS
+	var socketFilters []*elf.SocketFilter
+	for sf := range b.IterSocketFilter() {
+		socketFilters = append(socketFilters, sf)
+	}
+
+	if len(socketFilter) > 0 {
+		t.Fatal("socket filter dummy was loaded, but it shouldn't.")
+	}
+}

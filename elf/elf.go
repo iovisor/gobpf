@@ -477,6 +477,7 @@ type SectionParams struct {
 	SkipPerfMapInitialization bool
 	PinPath                   string // path to be pinned, relative to "/sys/fs/bpf"
 	MapMaxEntries             int    // Used to override bpf map entries size
+	Disable                   bool   // Used to disable loading an ELF section altogether
 }
 
 // Load loads the BPF programs and BPF maps in the module. Each ELF section
@@ -544,6 +545,9 @@ func (b *Module) Load(parameters map[string]SectionParams) error {
 			processed[section.Info] = true
 
 			secName := rsection.Name
+			if parameters[secName].Disabled {
+				continue
+			}
 
 			isKprobe := strings.HasPrefix(secName, "kprobe/")
 			isKretprobe := strings.HasPrefix(secName, "kretprobe/")
@@ -677,6 +681,9 @@ func (b *Module) Load(parameters map[string]SectionParams) error {
 		}
 
 		secName := section.Name
+		if parameters[secName].Disabled {
+			continue
+		}
 
 		isKprobe := strings.HasPrefix(secName, "kprobe/")
 		isKretprobe := strings.HasPrefix(secName, "kretprobe/")
