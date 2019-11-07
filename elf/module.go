@@ -131,9 +131,10 @@ const (
 	IngressType AttachType = iota
 	EgressType
 	SockCreateType
+	SockOpsType
 )
 
-// CgroupProgram represents a cgroup skb/sock program
+// CgroupProgram represents a cgroup skb/socks/sock_ops program
 type CgroupProgram struct {
 	Name  string
 	insns *C.struct_bpf_insn

@@ -133,4 +133,12 @@ int socket__dummy(struct __sk_buff *skb)
 	return 0;
 }
 
+#if KERNEL_VERSION_GTE(413)
+SEC("sockops/dummy")
+int sockops__dummy(struct bpf_sock *sk)
+{
+	return 1;
+}
+#endif
+
 unsigned int _version SEC("version") = 0xFFFFFFFE;
