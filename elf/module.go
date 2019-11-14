@@ -194,7 +194,7 @@ func newModule() *Module {
 		tracepointPrograms:    make(map[string]*TracepointProgram),
 		rawTracepointPrograms: make(map[string]*RawTracepointProgram),
 		schedPrograms:         make(map[string]*SchedProgram),
-		log:                   make([]byte, 2524288),
+		log:                   make([]byte, 4524288),
 	}
 }
 
