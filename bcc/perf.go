@@ -46,6 +46,7 @@ type callbackData struct {
 	receiverChan chan []byte
 }
 
+// BPF_PERF_READER_PAGE_CNT is the default page_cnt used per cpu ring buffer
 const BPF_PERF_READER_PAGE_CNT = 8
 
 var byteOrder binary.ByteOrder
@@ -107,8 +108,13 @@ func determineHostByteOrder() binary.ByteOrder {
 	return binary.BigEndian
 }
 
-// InitPerfMap initializes a perf map with a receiver channel.
+// InitPerfMap initializes a perf map with a receiver channel, with a default page_cnt.
 func InitPerfMap(table *Table, receiverChan chan []byte) (*PerfMap, error) {
+	return InitPerfMapWithPageCnt(table, receiverChan, BPF_PERF_READER_PAGE_CNT)
+}
+
+// InitPerfMapWithPageCnt initializes a perf map with a receiver channel with a specified page_cnt.
+func InitPerfMapWithPageCnt(table *Table, receiverChan chan []byte, pageCnt int) (*PerfMap, error) {
 	fd := table.Config()["fd"].(int)
 	keySize := table.Config()["key_size"].(uint64)
 	leafSize := table.Config()["leaf_size"].(uint64)
@@ -134,7 +140,7 @@ func InitPerfMap(table *Table, receiverChan chan []byte) (*PerfMap, error) {
 	}
 
 	for _, cpu := range cpus {
-		reader, err := bpfOpenPerfBuffer(cpu, callbackDataIndex)
+		reader, err := bpfOpenPerfBuffer(cpu, callbackDataIndex, pageCnt)
 		if err != nil {
 			return nil, fmt.Errorf("failed to open perf buffer: %v", err)
 		}
@@ -186,13 +192,17 @@ func (pm *PerfMap) poll(timeout int) {
 	}
 }
 
-func bpfOpenPerfBuffer(cpu uint, callbackDataIndex uint64) (unsafe.Pointer, error) {
+func bpfOpenPerfBuffer(cpu uint, callbackDataIndex uint64, pageCnt int) (unsafe.Pointer, error) {
+	if (pageCnt & (pageCnt - 1)) != 0 {
+		return nil, fmt.Errorf("pageCnt must be divisible by 2: %d", pageCnt)
+	}
 	cpuC := C.int(cpu)
+	pageCntC := C.int(pageCnt)
 	reader, err := C.bpf_open_perf_buffer(
 		(C.perf_reader_raw_cb)(unsafe.Pointer(C.callback_to_go)),
 		nil,
 		unsafe.Pointer(uintptr(callbackDataIndex)),
-		-1, cpuC, BPF_PERF_READER_PAGE_CNT)
+		-1, cpuC, pageCntC)
 	if reader == nil {
 		return nil, fmt.Errorf("failed to open perf buffer: %v", err)
 	}
