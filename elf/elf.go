@@ -563,6 +563,7 @@ func (b *Module) Load(parameters map[string]SectionParams) error {
 			isTracepoint := strings.HasPrefix(secName, "tracepoint/")
 			isSchedCls := strings.HasPrefix(secName, "sched_cls/")
 			isSchedAct := strings.HasPrefix(secName, "sched_act/")
+			isXDP := strings.HasPrefix(secName, "xdp/")
 
 			var progType uint32
 			switch {
@@ -587,6 +588,8 @@ func (b *Module) Load(parameters map[string]SectionParams) error {
 				progType = uint32(C.BPF_PROG_TYPE_SCHED_CLS)
 			case isSchedAct:
 				progType = uint32(C.BPF_PROG_TYPE_SCHED_ACT)
+			case isXDP:
+				progType = uint32(C.BPF_PROG_TYPE_XDP)
 			}
 
 			// If Kprobe or Kretprobe for a syscall, use correct syscall prefix in section name
@@ -602,7 +605,7 @@ func (b *Module) Load(parameters map[string]SectionParams) error {
 				}
 			}
 
-			if isKprobe || isKretprobe || isUprobe || isUretprobe || isCgroupSkb || isCgroupSock || isSocketFilter || isTracepoint || isSchedCls || isSchedAct {
+			if isKprobe || isKretprobe || isUprobe || isUretprobe || isCgroupSkb || isCgroupSock || isSocketFilter || isTracepoint || isSchedCls || isSchedAct || isXDP {
 				rdata, err := rsection.Data()
 				if err != nil {
 					return err
@@ -674,6 +677,12 @@ func (b *Module) Load(parameters map[string]SectionParams) error {
 						insns: insns,
 						fd:    int(progFd),
 					}
+				case isXDP:
+					b.xdpPrograms[secName] = &XDPProgram{
+						Name: secName,
+						insns: insns,
+						fd: int(progFd),
+					}
 				}
 			}
 		}
@@ -696,6 +705,7 @@ func (b *Module) Load(parameters map[string]SectionParams) error {
 		isTracepoint := strings.HasPrefix(secName, "tracepoint/")
 		isSchedCls := strings.HasPrefix(secName, "sched_cls/")
 		isSchedAct := strings.HasPrefix(secName, "sched_act/")
+		isXDP := strings.HasPrefix(secName, "xdp/")
 
 		var progType uint32
 		switch {
@@ -719,6 +729,8 @@ func (b *Module) Load(parameters map[string]SectionParams) error {
 			progType = uint32(C.BPF_PROG_TYPE_SCHED_CLS)
 		case isSchedAct:
 			progType = uint32(C.BPF_PROG_TYPE_SCHED_ACT)
+		case isXDP:
+			progType = uint32(C.BPF_PROG_TYPE_XDP)
 		}
 
 		// If Kprobe or Kretprobe for a syscall, use correct syscall prefix in section name
@@ -734,7 +746,7 @@ func (b *Module) Load(parameters map[string]SectionParams) error {
 			}
 		}
 
-		if isKprobe || isKretprobe || isUprobe || isUretprobe || isCgroupSkb || isCgroupSock || isSocketFilter || isTracepoint || isSchedCls || isSchedAct {
+		if isKprobe || isKretprobe || isUprobe || isUretprobe || isCgroupSkb || isCgroupSock || isSocketFilter || isTracepoint || isSchedCls || isSchedAct || isXDP {
 			data, err := section.Data()
 			if err != nil {
 				return err
@@ -800,6 +812,12 @@ func (b *Module) Load(parameters map[string]SectionParams) error {
 					Name:  secName,
 					insns: insns,
 					fd:    int(progFd),
+				}
+			case isXDP:
+				b.xdpPrograms[secName] = &XDPProgram{
+					Name: secName,
+					insns: insns,
+					fd: int(progFd),
 				}
 			}
 		}

@@ -133,4 +133,14 @@ int socket__dummy(struct __sk_buff *skb)
 	return 0;
 }
 
+SEC("xdp/prog1")
+int xdp_drop(struct xdp_md *ctx) {
+    return XDP_DROP;
+}
+
+SEC("xdp/prog2")
+int xdp_pass(struct xdp_md *ctx) {
+    return XDP_PASS;
+}
+
 unsigned int _version SEC("version") = 0xFFFFFFFE;
