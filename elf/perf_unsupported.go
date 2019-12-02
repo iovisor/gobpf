@@ -13,3 +13,7 @@ func (pm *PerfMap) SetTimestampFunc(timestamp func(*[]byte) uint64) {}
 func (pm *PerfMap) PollStart() {}
 
 func (pm *PerfMap) PollStop() {}
+
+func NowNanoseconds() uint64 {
+	return 0
+}
