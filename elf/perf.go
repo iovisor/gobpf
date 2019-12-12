@@ -190,7 +190,7 @@ func (pm *PerfMap) PollStart() {
 				}
 
 				var harvestCount C.int
-				beforeHarvest := nowNanoseconds()
+				beforeHarvest := NowNanoseconds()
 				for cpu := 0; cpu < cpuCount; cpu++ {
 				ringBufferLoop:
 					for {
@@ -314,8 +314,8 @@ type PerfEventLost struct {
 	Lost uint64
 }
 
-// nowNanoseconds returns a time that can be compared to bpf_ktime_get_ns()
-func nowNanoseconds() uint64 {
+// NowNanoseconds returns a time that can be compared to bpf_ktime_get_ns()
+func NowNanoseconds() uint64 {
 	var ts syscall.Timespec
 	syscall.Syscall(syscall.SYS_CLOCK_GETTIME, 1 /* CLOCK_MONOTONIC */, uintptr(unsafe.Pointer(&ts)), 0)
 	sec, nsec := ts.Unix()
