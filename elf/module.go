@@ -38,8 +38,8 @@ import (
 #include <string.h>
 #include <stdlib.h>
 #include <stdbool.h>
-#include "include/bpf.h"
-#include "include/libbpf.h"
+#include "bpf.h"
+#include "libbpf.h"
 #include <linux/perf_event.h>
 #include <linux/unistd.h>
 #include <sys/socket.h>
@@ -122,6 +122,7 @@ int bpf_attach_xdp(const char *dev_name, int progfd, uint32_t flags)
   	return 0;
 }
 */
+// #cgo CFLAGS: -I${SRCDIR}/include
 import "C"
 
 type Module struct {
