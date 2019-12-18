@@ -25,7 +25,7 @@ import (
 	"syscall"
 )
 
-var versionRegex = regexp.MustCompile(`^(\d+)\.(\d+).(\d+).*$`)
+var versionRegex = regexp.MustCompile(`^(\d+)\.(\d+)\.(\d+).*$`)
 
 // KernelVersionFromReleaseString converts a release string with format
 // 4.4.2[-1] to a kernel version number in LINUX_VERSION_CODE format.
@@ -75,7 +75,7 @@ func currentVersionUbuntu() (uint32, error) {
 	return KernelVersionFromReleaseString(releaseString)
 }
 
-var debianVersionRegex = regexp.MustCompile(`.* SMP Debian (\d+\.\d+.\d+-\d+) .*`)
+var debianVersionRegex = regexp.MustCompile(`.* SMP Debian (\d+\.\d+\.\d+\S*) .*`)
 
 func currentVersionDebian() (uint32, error) {
 	procVersion, err := ioutil.ReadFile("/proc/version")
