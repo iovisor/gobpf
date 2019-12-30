@@ -525,6 +525,15 @@ func (b *Module) AttachXDP(devName string, secName string) error {
 	return nil
 }
 
+// AttachXDPWithFlags attaches an xdp section to a device with flags.
+func (b *Module) AttachXDPWithFlags(devName string, secName string, flags uint32) error {
+	xdp, ok := b.xdpPrograms[secName]
+	if !ok {
+		return fmt.Errorf("no such XDP hook %q", secName)
+	}
+	return attachXDP(devName, xdp.fd, flags, true)
+}
+
 func (b *Module) RemoveXDP(devName string) error {
 	if err := attachXDP(devName, -1, 0, false); err != nil {
 		return err
