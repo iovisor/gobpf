@@ -520,7 +520,7 @@ func (bpf *Module) RemoveXDP(devName string) error {
 }
 
 // translate address to symbol for specific pid
-func (bpf *Module) getSymbol(addr uint64, pid int) error {
+func (bpf *Module) GetSymbol(addr uint64, pid int) error {
 	return bccSymbolByAddr(addr,pid)
 }
 
