@@ -519,6 +519,11 @@ func (bpf *Module) RemoveXDP(devName string) error {
 	return bpf.attachXDP(devName, -1, 0)
 }
 
+// RemoveXDP removes any xdp from this device.
+func (bpf *Module) getSymbol(addr uint64, pid int) error {
+	return bccSymbolByAddr(addr,pid)
+}
+
 func GetSyscallFnName(name string) string {
 	return GetSyscallPrefix() + name
 }
