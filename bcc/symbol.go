@@ -60,21 +60,6 @@ type bccSymbolOption struct {
 	useSymbolType     uint32
 }
 //return symbol assigned to the address
-func bccSymbolByAddr(addr uint64, pid int) string{
-        pidC := C.int(pid)
-        so := &bccSymbolOption{}
-        soC := (*C.struct_bcc_symbol_option)(unsafe.Pointer(so))
-        cache := C.bcc_symcache_new(pidC, soC)
-        sym := &bccSymbol{}
-        symC := (*C.struct_bcc_symbol)(unsafe.Pointer(sym))
-        addrC := C.uint64_t(addr)
-        res := C.bcc_symcache_resolve(cache, addrC, symC) //bcc_symcache_resolve_no_demangle
-        if res < 0 {
-                return ""
-        }
-        defer C.bcc_symbol_free_demangle_name(symC)
-        return C.GoString(symC.demangle_name) //symC.name
-}
 func bccSymbolByAddr(addr uint64, pid int, demangle int) string{
         pidC := C.int(pid)
         so := &bccSymbolOption{}
