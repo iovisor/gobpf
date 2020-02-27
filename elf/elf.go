@@ -862,10 +862,15 @@ func (b *Module) initializePerfMaps(parameters map[string]SectionParams) error {
 	return nil
 }
 
+// PerfMapStop stops the BPF program from writing into the perf ring buffers. 
+// However, the userspace program can still read the ring buffers.
 func (b *Module) PerfMapStop(mapName string) error {
 	m, ok := b.maps[mapName]
 	if !ok {
 		return fmt.Errorf("map %q not found", mapName)
+	}
+	if m.m.def._type != C.BPF_MAP_TYPE_PERF_EVENT_ARRAY {
+		return fmt.Errorf("%q is not a perf map", mapName)
 	}
 	cpus, err := cpuonline.Get()
 	if err != nil {
