@@ -76,6 +76,7 @@ var (
 	kernelVersion48  uint32
 	kernelVersion410 uint32
 	kernelVersion412 uint32
+	kernelVersion414 uint32
 )
 
 func init() {
@@ -84,6 +85,7 @@ func init() {
 	kernelVersion48, _ = elf.KernelVersionFromReleaseString("4.8.0")
 	kernelVersion410, _ = elf.KernelVersionFromReleaseString("4.10.0")
 	kernelVersion412, _ = elf.KernelVersionFromReleaseString("4.12.0")
+	kernelVersion414, _ = elf.KernelVersionFromReleaseString("4.14.0")
 }
 
 func TestModuleLoadBCC(t *testing.T) {
@@ -413,7 +415,7 @@ func checkCgroupProgs(t *testing.T, b *elf.Module) {
 }
 
 func checkXDPProgs(t *testing.T, b *elf.Module) {
-	if kernelVersion < kernelVersion412 {
+	if kernelVersion < kernelVersion48 {
 		t.Logf("kernel doesn't support XDP. Skipping...")
 		t.Skip()
 	}
@@ -632,7 +634,9 @@ func TestModuleLoadELF(t *testing.T) {
 	}
 
 	dummyELF := "./tests/dummy.o"
-	if kernelVersion > kernelVersion410 {
+	if kernelVersion > kernelVersion414 {
+		dummyELF = "./tests/dummy-414.o"
+	} else if kernelVersion > kernelVersion410 {
 		dummyELF = "./tests/dummy-410.o"
 	} else if kernelVersion > kernelVersion48 {
 		dummyELF = "./tests/dummy-48.o"

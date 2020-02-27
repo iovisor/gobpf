@@ -9,9 +9,9 @@
 #include <errno.h>
 #include <time.h>
 
-#include "include/bpf.h"
-#include "include/libbpf.h"
-#include "include/nlattr.h"
+#include "linux/bpf.h"
+#include "libbpf.h"
+#include "nlattr.h"
 
 #ifndef SOL_NETLINK
 #define SOL_NETLINK 270

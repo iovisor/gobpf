@@ -33,13 +33,15 @@ import (
 )
 
 /*
+#cgo CFLAGS: -I${SRCDIR}/include/uapi -I${SRCDIR}/include
+
 #include <unistd.h>
 #include <strings.h>
 #include <string.h>
 #include <stdlib.h>
 #include <stdbool.h>
-#include "include/bpf.h"
-#include "include/libbpf.h"
+#include "linux/bpf.h"
+#include "libbpf.h"
 #include <linux/perf_event.h>
 #include <linux/unistd.h>
 #include <sys/socket.h>

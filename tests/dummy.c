@@ -2,7 +2,7 @@
  * Compiled with './build'
  */
 
-#include "../elf/include/bpf.h"
+#include "../elf/include/uapi/linux/bpf.h"
 #include "../elf/include/bpf_map.h"
 
 #define SEC(NAME) __attribute__((section(NAME), used))
@@ -133,6 +133,7 @@ int socket__dummy(struct __sk_buff *skb)
 	return 0;
 }
 
+#if KERNEL_VERSION_GTE(48)
 SEC("xdp/prog1")
 int xdp_drop(struct xdp_md *ctx) {
     return XDP_DROP;
@@ -142,5 +143,6 @@ SEC("xdp/prog2")
 int xdp_pass(struct xdp_md *ctx) {
     return XDP_PASS;
 }
+#endif
 
 unsigned int _version SEC("version") = 0xFFFFFFFE;
