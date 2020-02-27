@@ -9,7 +9,7 @@
 #include <errno.h>
 #include <time.h>
 
-#include "linux/bpf.h"
+#include <linux/bpf.h>
 #include "libbpf.h"
 #include "nlattr.h"
 

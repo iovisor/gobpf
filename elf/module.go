@@ -40,7 +40,7 @@ import (
 #include <string.h>
 #include <stdlib.h>
 #include <stdbool.h>
-#include "linux/bpf.h"
+#include <linux/bpf.h>
 #include "libbpf.h"
 #include <linux/perf_event.h>
 #include <linux/unistd.h>
