@@ -4,7 +4,7 @@ package elf
 
 type PerfMap struct{}
 
-func InitPerfMap(b *Module, mapName string, receiverChan chan []byte) (*PerfMap, error) {
+func InitPerfMap(b *Module, mapName string, receiverChan chan []byte, lostChan chan uint64) (*PerfMap, error) {
 	return nil, errNotSupported
 }
 
