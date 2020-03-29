@@ -194,7 +194,7 @@ func (pm *PerfMap) poll(timeout int) {
 
 func bpfOpenPerfBuffer(cpu uint, callbackDataIndex uint64, pageCnt int) (unsafe.Pointer, error) {
 	if (pageCnt & (pageCnt - 1)) != 0 {
-		return nil, fmt.Errorf("pageCnt must be divisible by 2: %d", pageCnt)
+		return nil, fmt.Errorf("pageCnt must be a power of 2: %d", pageCnt)
 	}
 	cpuC := C.int(cpu)
 	pageCntC := C.int(pageCnt)
