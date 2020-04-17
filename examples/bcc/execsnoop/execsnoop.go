@@ -228,7 +228,7 @@ func run() {
 
 	channel := make(chan []byte, 1000)
 
-	perfMap, err := bpf.InitPerfMap(table, channel)
+	perfMap, err := bpf.InitPerfMap(table, channel, nil)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Failed to init perf map: %s\n", err)
 		os.Exit(1)
