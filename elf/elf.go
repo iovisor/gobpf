@@ -49,8 +49,8 @@ import (
 #include <assert.h>
 #include <sys/socket.h>
 #include <linux/unistd.h>
-#include "include/bpf.h"
-#include "include/bpf_map.h"
+#include <linux/bpf.h>
+#include "bpf_map.h"
 #include <poll.h>
 #include <linux/perf_event.h>
 #include <sys/resource.h>

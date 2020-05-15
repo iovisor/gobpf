@@ -25,7 +25,7 @@ import (
 )
 
 /*
-#include "include/bpf.h"
+#include <linux/bpf.h>
 #include <linux/unistd.h>
 
 extern __u64 ptr_to_u64(void *);

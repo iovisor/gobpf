@@ -10,7 +10,7 @@
 set -eux
 set -o pipefail
 
-readonly kernel_versions=("4.4.129" "4.9.96" "4.14.37")
+readonly kernel_versions=("4.4.214" "4.9.214" "4.14.171")
 readonly rkt_version="1.30.0"
 
 if [[ ! -f "./rkt/rkt" ]] ||
@@ -38,7 +38,7 @@ for kernel_version in "${kernel_versions[@]}"; do
     --dns=8.8.8.8 \
     --stage1-name="kinvolk.io/aci/rkt/stage1-kvm:${rkt_version},kernelversion=${kernel_version}" \
     --volume=gobpf,kind=host,source="$PWD" \
-    docker://schu/gobpf-ci:1f3a531e145a9f5f8bd53e55908d21240491202c \
+    docker://schu/gobpf-ci:d39b30bc8f1787ade80a2f5bac6ec0afbbc392b1 \
     --memory=1024M \
     --mount=volume=gobpf,target=/go/src/github.com/iovisor/gobpf \
     --environment=GOPATH=/go \
