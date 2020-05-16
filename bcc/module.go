@@ -31,6 +31,17 @@ import (
 #cgo LDFLAGS: -lbcc
 #include <bcc/bcc_common.h>
 #include <bcc/libbpf.h>
+#include <sys/socket.h>
+
+int bpf_attach_socket(int sock, int fd)
+{
+	return setsockopt(sock, SOL_SOCKET, SO_ATTACH_BPF, &fd, sizeof(fd));
+}
+
+int bpf_detach_socket(int sock, int fd)
+{
+	return setsockopt(sock, SOL_SOCKET, SO_DETACH_BPF, &fd, sizeof(fd));
+}
 */
 import "C"
 
@@ -195,6 +206,11 @@ func (bpf *Module) LoadPerfEvent(name string) (int, error) {
 // LoadUprobe loads a program of type BPF_PROG_TYPE_KPROBE.
 func (bpf *Module) LoadUprobe(name string) (int, error) {
 	return bpf.Load(name, C.BPF_PROG_TYPE_KPROBE, 0, 0)
+}
+
+// LoadSocketFilter loads a program of type BPF_PROG_TYPE_SOCKET_FILTER
+func (bpf *Module) LoadSocketFilter(name string) (int, error) {
+	return bpf.Load(name, C.BPF_PROG_TYPE_SOCKET_FILTER, 0, 0)
 }
 
 // Load a program.
@@ -492,6 +508,40 @@ func (bpf *Module) TableIter() <-chan map[string]interface{} {
 	}()
 	return ch
 }
+
+// AttachSocketFilter
+func (bpf *Module) AttachSocketFilter(progFd int, sockFd int) error {
+	res, err := C.bpf_attach_socket(C.int(sockFd), C.int(progFd))
+	if res != 0 {
+		return fmt.Errorf("error attaching BPF socket filter: %v", err)
+	}
+	return err
+}
+
+// DetachSocketFilter
+func (bpf *Module) DetachSocketFilter(progFd int, sockFd int) error {
+	res, err := C.bpf_detach_socket(C.int(sockFd), C.int(progFd))
+	if res != 0 {
+		return fmt.Errorf("error detaching BPF socket filter: %v", err)
+	}
+	return nil
+}
+
+func (bpf *Module) attachRawSocket(devName string) (int, error) {
+	devNameCS := C.CString(devName)
+	defer C.free(unsafe.Pointer(devNameCS))
+	sockFd, err := C.bpf_open_raw_sock(devNameCS)
+	if sockFd == -1 {
+		return -1, fmt.Errorf("failed to open raw socket %v: %v", devName, err)
+	}
+	return int(sockFd), nil
+}
+
+// AttachRawSocket
+func (bpf *Module) AttachRawSocket(devName string) (int, error) {
+  return bpf.attachRawSocket(devName)
+}
+
 
 func (bpf *Module) attachXDP(devName string, fd int, flags uint32) error {
 	devNameCS := C.CString(devName)
