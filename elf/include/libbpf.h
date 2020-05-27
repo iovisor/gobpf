@@ -14,6 +14,8 @@
 #include <stdint.h>
 #include <linux/netlink.h>
 
+int bpf_set_link_xdp_fd(int ifindex, int fd, __u32 flags);
+
 enum libbpf_errno {
 	__LIBBPF_ERRNO__START = 4000,
 
