@@ -1,6 +1,6 @@
 # gobpf
 
-[![Build Status](https://semaphoreci.com/api/v1/alban/gobpf-2/branches/master/badge.svg)](https://semaphoreci.com/alban/gobpf-2) [![GoDoc](https://godoc.org/github.com/golang/gddo?status.svg)](http://godoc.org/github.com/iovisor/gobpf)
+[![GoDoc](https://godoc.org/github.com/golang/gddo?status.svg)](http://godoc.org/github.com/iovisor/gobpf)
 
 This repository provides go bindings for the [bcc framework](https://github.com/iovisor/bcc)
 as well as low-level routines to load and use eBPF programs from .elf
