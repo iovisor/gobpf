@@ -168,6 +168,8 @@ const (
 	SockCreateType
 )
 
+const defaultLogSize uint32 = 524288
+
 // CgroupProgram represents a cgroup skb/sock program
 type CgroupProgram struct {
 	Name  string
@@ -204,7 +206,7 @@ type XDPProgram struct {
 	fd    int
 }
 
-func newModule() *Module {
+func newModule(logSize uint32) *Module {
 	return &Module{
 		probes:             make(map[string]*Kprobe),
 		uprobes:            make(map[string]*Uprobe),
@@ -213,18 +215,32 @@ func newModule() *Module {
 		tracepointPrograms: make(map[string]*TracepointProgram),
 		schedPrograms:      make(map[string]*SchedProgram),
 		xdpPrograms:        make(map[string]*XDPProgram),
-		log:                make([]byte, 524288),
+		log:                make([]byte, logSize),
 	}
 }
 
+func NewModuleWithLog(fileName string, logSize uint32) *Module {
+
+	module := newModule(logSize)
+	module.fileName = fileName
+	return module
+}
+
+func NewModuleFromReaderWithLog(fileReader io.ReaderAt, logSize uint32) *Module {
+	module := newModule(logSize)
+	module.fileReader = fileReader
+	return module
+}
+
 func NewModule(fileName string) *Module {
-	module := newModule()
+
+	module := newModule(defaultLogSize)
 	module.fileName = fileName
 	return module
 }
 
 func NewModuleFromReader(fileReader io.ReaderAt) *Module {
-	module := newModule()
+	module := newModule(defaultLogSize)
 	module.fileReader = fileReader
 	return module
 }
@@ -525,6 +541,15 @@ func (b *Module) AttachXDP(devName string, secName string) error {
 		return err
 	}
 	return nil
+}
+
+// AttachXDPWithFlags attaches an xdp section to a device with flags.
+func (b *Module) AttachXDPWithFlags(devName string, secName string, flags uint32) error {
+	xdp, ok := b.xdpPrograms[secName]
+	if !ok {
+		return fmt.Errorf("no such XDP hook %q", secName)
+	}
+	return attachXDP(devName, xdp.fd, flags, true)
 }
 
 func (b *Module) RemoveXDP(devName string) error {
