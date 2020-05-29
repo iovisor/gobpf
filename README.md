@@ -6,11 +6,10 @@ This repository provides go bindings for the [bcc framework](https://github.com/
 as well as low-level routines to load and use eBPF programs from .elf
 files.
 
-gobpf is at an early stage but is usable nonetheless. Input and contributions
-are very welcome.
+Input and contributions are very welcome.
 
-We recommend vendoring gobpf and pinning its version as the API is likely to
-change during development.
+We recommend vendoring gobpf and pinning its version as the API is regularly
+changing following bcc and Linux updates and releases.
 
 ## Requirements
 
