@@ -884,6 +884,7 @@ func (b *Module) initializePerfMaps(parameters map[string]SectionParams) error {
 
 			b.maps[name].pmuFDs = append(b.maps[name].pmuFDs, pmuFD)
 			b.maps[name].headers = append(b.maps[name].headers, (*C.struct_perf_event_mmap_page)(unsafe.Pointer(&base[0])))
+			b.maps[name].bases = append(b.maps[name].bases, base)
 		}
 	}
 
@@ -922,6 +923,7 @@ type Map struct {
 	// only for perf maps
 	pmuFDs    []C.int
 	headers   []*C.struct_perf_event_mmap_page
+	bases     [][]byte
 	pageCount int
 }
 
