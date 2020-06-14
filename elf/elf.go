@@ -673,6 +673,7 @@ func (b *Module) Load(parameters map[string]SectionParams) error {
 						Name:  secName,
 						insns: insns,
 						fd:    int(progFd),
+						efd:   -1,
 					}
 				case isSchedCls:
 					fallthrough
@@ -809,6 +810,7 @@ func (b *Module) Load(parameters map[string]SectionParams) error {
 					Name:  secName,
 					insns: insns,
 					fd:    int(progFd),
+					efd:   -1,
 				}
 			case isSchedCls:
 				fallthrough
