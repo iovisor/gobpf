@@ -246,12 +246,13 @@ static int bpf_update_element(int fd, void *key, void *value, unsigned long long
 }
 
 
-static int perf_event_open_map(int pid, int cpu, int group_fd, unsigned long flags)
+static int perf_event_open_map(int pid, int cpu, int group_fd, unsigned long flags, int backward)
 {
 	struct perf_event_attr attr = {0,};
 	attr.type = PERF_TYPE_SOFTWARE;
 	attr.sample_type = PERF_SAMPLE_RAW;
 	attr.wakeup_events = 1;
+	attr.write_backward = !!backward;
 
 	attr.size = sizeof(struct perf_event_attr);
 	attr.config = 10; // PERF_COUNT_SW_BPF_OUTPUT
@@ -483,10 +484,12 @@ func (b *Module) relocate(data []byte, rdata []byte) error {
 }
 
 type SectionParams struct {
-	PerfRingBufferPageCount   int
-	SkipPerfMapInitialization bool
-	PinPath                   string // path to be pinned, relative to "/sys/fs/bpf"
-	MapMaxEntries             int    // Used to override bpf map entries size
+	PerfRingBufferPageCount    int
+	SkipPerfMapInitialization  bool
+	PinPath                    string // path to be pinned, relative to "/sys/fs/bpf"
+	MapMaxEntries              int    // Used to override bpf map entries size
+	PerfRingBufferBackward     bool
+	PerfRingBufferOverwritable bool
 }
 
 // Load loads the BPF programs and BPF maps in the module. Each ELF section
@@ -828,14 +831,70 @@ func (b *Module) Load(parameters map[string]SectionParams) error {
 	return b.initializePerfMaps(parameters)
 }
 
+func createPerfRingBuffer(backward bool, overwriteable bool, pageCount int) ([]C.int, []*C.struct_perf_event_mmap_page, [][]byte, error) {
+	pageSize := os.Getpagesize()
+
+	cpus, err := cpuonline.Get()
+	if err != nil {
+		return nil, nil, nil, fmt.Errorf("failed to determine online cpus: %v", err)
+	}
+
+	pmuFds := make([]C.int, len(cpus))
+	headers := make([]*C.struct_perf_event_mmap_page, len(cpus))
+	bases := make([][]byte, len(cpus))
+
+	for i, cpu := range cpus {
+		cpuC := C.int(cpu)
+		backwardC := C.int(0)
+		if backward {
+			backwardC = 1
+		}
+		pmuFD, err := C.perf_event_open_map(-1 /* pid */, cpuC /* cpu */, -1 /* group_fd */, C.PERF_FLAG_FD_CLOEXEC, backwardC)
+		if pmuFD < 0 {
+			return nil, nil, nil, fmt.Errorf("perf_event_open for map error: %v", err)
+		}
+
+		// mmap
+		mmapSize := pageSize * (pageCount + 1)
+
+		// The 'overwritable' bit is set via PROT_WRITE, see:
+		// https://github.com/torvalds/linux/commit/9ecda41acb971ebd07c8fb35faf24005c0baea12
+		// "By mapping without 'PROT_WRITE', an overwritable ring buffer is created."
+		var prot int
+		if overwriteable {
+			prot = syscall.PROT_READ
+		} else {
+			prot = syscall.PROT_READ | syscall.PROT_WRITE
+		}
+
+		base, err := syscall.Mmap(int(pmuFD), 0, mmapSize, prot, syscall.MAP_SHARED)
+		if err != nil {
+			return nil, nil, nil, fmt.Errorf("mmap error: %v", err)
+		}
+
+		// enable
+		_, _, err2 := syscall.Syscall(syscall.SYS_IOCTL, uintptr(pmuFD), C.PERF_EVENT_IOC_ENABLE, 0)
+		if err2 != 0 {
+			return nil, nil, nil, fmt.Errorf("error enabling perf event: %v", err2)
+		}
+
+		pmuFds[i] = pmuFD
+		headers[i] = (*C.struct_perf_event_mmap_page)(unsafe.Pointer(&base[0]))
+		bases[i] = base
+	}
+
+	return pmuFds, headers, bases, nil
+}
+
 func (b *Module) initializePerfMaps(parameters map[string]SectionParams) error {
 	for name, m := range b.maps {
 		if m.m != nil && m.m.def._type != C.BPF_MAP_TYPE_PERF_EVENT_ARRAY {
 			continue
 		}
 
-		pageSize := os.Getpagesize()
 		b.maps[name].pageCount = 8 // reasonable default
+		backward := false
+		overwriteable := false
 
 		sectionName := "maps/" + name
 		if params, ok := parameters[sectionName]; ok {
@@ -848,6 +907,17 @@ func (b *Module) initializePerfMaps(parameters map[string]SectionParams) error {
 				}
 				b.maps[name].pageCount = params.PerfRingBufferPageCount
 			}
+			if params.PerfRingBufferBackward {
+				backward = true
+			}
+			if params.PerfRingBufferOverwritable {
+				overwriteable = true
+			}
+		}
+
+		pmuFds, headers, bases, err := createPerfRingBuffer(backward, overwriteable, b.maps[name].pageCount)
+		if err != nil {
+			return fmt.Errorf("cannot create perfring map %v", err)
 		}
 
 		cpus, err := cpuonline.Get()
@@ -855,43 +925,23 @@ func (b *Module) initializePerfMaps(parameters map[string]SectionParams) error {
 			return fmt.Errorf("failed to determine online cpus: %v", err)
 		}
 
-		for _, cpu := range cpus {
-			cpuC := C.int(cpu)
-			pmuFD, err := C.perf_event_open_map(-1 /* pid */, cpuC /* cpu */, -1 /* group_fd */, C.PERF_FLAG_FD_CLOEXEC)
-			if pmuFD < 0 {
-				return fmt.Errorf("perf_event_open for map error: %v", err)
-			}
-
-			// mmap
-			mmapSize := pageSize * (b.maps[name].pageCount + 1)
-
-			base, err := syscall.Mmap(int(pmuFD), 0, mmapSize, syscall.PROT_READ|syscall.PROT_WRITE, syscall.MAP_SHARED)
-			if err != nil {
-				return fmt.Errorf("mmap error: %v", err)
-			}
-
-			// enable
-			_, _, err2 := syscall.Syscall(syscall.SYS_IOCTL, uintptr(pmuFD), C.PERF_EVENT_IOC_ENABLE, 0)
-			if err2 != 0 {
-				return fmt.Errorf("error enabling perf event: %v", err2)
-			}
-
+		for index, cpu := range cpus {
 			// assign perf fd to map
-			ret, err := C.bpf_update_element(C.int(b.maps[name].m.fd), unsafe.Pointer(&cpuC), unsafe.Pointer(&pmuFD), C.BPF_ANY)
+			ret, err := C.bpf_update_element(C.int(b.maps[name].m.fd), unsafe.Pointer(&cpu), unsafe.Pointer(&pmuFds[index]), C.BPF_ANY)
 			if ret != 0 {
-				return fmt.Errorf("cannot assign perf fd to map %q: %v (cpu %d)", name, err, cpuC)
+				return fmt.Errorf("cannot assign perf fd to map %q: %v (cpu %d)", name, err, index)
 			}
-
-			b.maps[name].pmuFDs = append(b.maps[name].pmuFDs, pmuFD)
-			b.maps[name].headers = append(b.maps[name].headers, (*C.struct_perf_event_mmap_page)(unsafe.Pointer(&base[0])))
-			b.maps[name].bases = append(b.maps[name].bases, base)
 		}
+
+		b.maps[name].pmuFDs = pmuFds
+		b.maps[name].headers = headers
+		b.maps[name].bases = bases
 	}
 
 	return nil
 }
 
-// PerfMapStop stops the BPF program from writing into the perf ring buffers. 
+// PerfMapStop stops the BPF program from writing into the perf ring buffers.
 // However, the userspace program can still read the ring buffers.
 func (b *Module) PerfMapStop(mapName string) error {
 	m, ok := b.maps[mapName]
