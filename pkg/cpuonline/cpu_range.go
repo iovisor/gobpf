@@ -7,6 +7,7 @@ import (
 )
 
 const cpuOnline = "/sys/devices/system/cpu/online"
+const cpuPossible = "/sys/devices/system/cpu/possible"
 
 // loosely based on https://github.com/iovisor/bcc/blob/v0.3.0/src/python/bcc/utils.py#L15
 func readCPURange(cpuRangeStr string) ([]uint, error) {
@@ -36,6 +37,14 @@ func readCPURange(cpuRangeStr string) ([]uint, error) {
 // Get returns a slice with the online CPUs, for example `[0, 2, 3]`
 func Get() ([]uint, error) {
 	buf, err := ioutil.ReadFile(cpuOnline)
+	if err != nil {
+		return nil, err
+	}
+	return readCPURange(string(buf))
+}
+
+func GetPossibleCPUs() ([]string, error) {
+	buf, err := ioutil.ReadFile(cpuPossible)
 	if err != nil {
 		return nil, err
 	}

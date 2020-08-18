@@ -19,7 +19,10 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"runtime"
 	"unsafe"
+
+	"github.com/iovisor/gobpf/pkg/cpuonline"
 )
 
 /*
@@ -140,7 +143,18 @@ func (table *Table) Get(key []byte) ([]byte, error) {
 
 	keyP := unsafe.Pointer(&key[0])
 
-	leafSize := C.bpf_table_leaf_size_id(mod, table.id)
+	leafSize := int(C.bpf_table_leaf_size_id(table.module.p, table.id))
+	tableType := C.bpf_table_type_id(table.module.p, table.id)
+	if tableType == C.BPF_MAP_TYPE_PERCPU_HASH ||
+		tableType == C.BPF_MAP_TYPE_PERCPU_ARRAY ||
+		tableType == C.BPF_MAP_TYPE_LRU_PERCPU_HASH ||
+		tableType == C.BPF_MAP_TYPE_PERCPU_CGROUP_STORAGE {
+		cpus, err := cpuonline.GetPossibleCPUs()
+		if err != nil {
+			return nil, fmt.Errorf("failed get possible cpus: %v", err)
+		}
+		leafSize = leafSize * len(cpus)
+	}
 	leaf := make([]byte, leafSize)
 	leafP := unsafe.Pointer(&leaf[0])
 
@@ -160,7 +174,14 @@ func (table *Table) Get(key []byte) ([]byte, error) {
 func (table *Table) GetP(key unsafe.Pointer) (unsafe.Pointer, error) {
 	fd := C.bpf_table_fd_id(table.module.p, table.id)
 
-	leafSize := C.bpf_table_leaf_size_id(table.module.p, table.id)
+	leafSize := int(C.bpf_table_leaf_size_id(table.module.p, table.id))
+	tableType := C.bpf_table_type_id(table.module.p, table.id)
+	if tableType == C.BPF_MAP_TYPE_PERCPU_HASH ||
+		tableType == C.BPF_MAP_TYPE_PERCPU_ARRAY ||
+		tableType == C.BPF_MAP_TYPE_LRU_PERCPU_HASH ||
+		tableType == C.BPF_MAP_TYPE_PERCPU_CGROUP_STORAGE {
+		leafSize = leafSize * runtime.NumCPU()
+	}
 	leaf := make([]byte, leafSize)
 	leafP := unsafe.Pointer(&leaf[0])
 
