@@ -282,7 +282,7 @@ func writeUprobeEvent(probeType, eventName, path string, offset uint64) (int, er
 	}
 	defer f.Close()
 
-	cmd := fmt.Sprintf("%s:%s %s:%#x\n", probeType, eventName, path, offset)
+	cmd := fmt.Sprintf("%s:%s %s:%#x", probeType, eventName, path, offset)
 
 	if _, err = f.WriteString(cmd); err != nil {
 		return -1, fmt.Errorf("cannot write %q to uprobe_events: %v", cmd, err)
