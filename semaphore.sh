@@ -38,7 +38,7 @@ for kernel_version in "${kernel_versions[@]}"; do
     --dns=8.8.8.8 \
     --stage1-name="kinvolk.io/aci/rkt/stage1-kvm:${rkt_version},kernelversion=${kernel_version}" \
     --volume=gobpf,kind=host,source="$PWD" \
-    docker://schu/gobpf-ci:fbe20032db916fb054950734b87ac8d0556eaf21 \
+    docker://schu/gobpf-ci:af2220fe939329f08928dcfe133d7c533124d229 \
     --memory=1024M \
     --mount=volume=gobpf,target=/go/src/github.com/iovisor/gobpf \
     --environment=GOPATH=/go \
