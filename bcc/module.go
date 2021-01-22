@@ -197,6 +197,11 @@ func (bpf *Module) LoadUprobe(name string) (int, error) {
 	return bpf.Load(name, C.BPF_PROG_TYPE_KPROBE, 0, 0)
 }
 
+// LoadSocketFilter loads a program of type BPF_PROG_TYPE_SOCKET_FILTER.
+func (bpf *Module) LoadSocketFilter(name string) (int, error) {
+	return bpf.Load(name, C.BPF_PROG_TYPE_SOCKET_FILTER, 0, 0)
+}
+
 // Load a program.
 func (bpf *Module) Load(name string, progType int, logLevel, logSize uint) (int, error) {
 	fd, ok := bpf.funcs[name]
@@ -266,6 +271,15 @@ func (bpf *Module) attachUProbe(evName string, attachType uint32, path string, a
 		return fmt.Errorf("failed to attach BPF uprobe: %v", err)
 	}
 	bpf.uprobes[evName] = int(res)
+	return nil
+}
+
+// AttachSocketFilter attach a socket filter to a function
+func (bpf *Module) AttachSocketFilter(sockFd, socketFilterFd int) error {
+	ret, err := C.bpf_attach_socket(C.int(sockFd), C.int(socketFilterFd))
+	if ret != 0 {
+		return fmt.Errorf("error attaching BPF socket filter: %v", err)
+	}
 	return nil
 }
 
