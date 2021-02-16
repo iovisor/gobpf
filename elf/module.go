@@ -148,6 +148,10 @@ type Kprobe struct {
 	insns *C.struct_bpf_insn
 	fd    int
 	efd   int
+
+	// if nil, it means the probe is created with tryPerfEventOpenWithProbe,
+	// which means the probe will be cleaned up by kernel when process exists.
+	OpenWithPerfEvent error
 }
 
 type Uprobe struct {
@@ -155,6 +159,10 @@ type Uprobe struct {
 	insns *C.struct_bpf_insn
 	fd    int
 	efds  map[string]int
+
+	// if nil, it means the probe is created with tryPerfEventOpenWithProbe,
+	// which means the probe will be cleaned up by kernel when process exists.
+	OpenWithPerfEvent error
 }
 
 type AttachType int
@@ -346,8 +354,10 @@ func (b *Module) EnableKprobe(secName string, maxactive int) error {
 	}
 	progFd := probe.fd
 	var maxactiveStr string
+	var isReturn bool
 	if isKretprobe {
 		probeType = "r"
+		isReturn = true
 		funcName = strings.TrimPrefix(secName, "kretprobe/")
 		if maxactive > 0 {
 			maxactiveStr = fmt.Sprintf("%d", maxactive)
@@ -356,8 +366,19 @@ func (b *Module) EnableKprobe(secName string, maxactive int) error {
 		probeType = "p"
 		funcName = strings.TrimPrefix(secName, "kprobe/")
 	}
-	eventName := probeType + funcName
 
+	if maxactive <= 0 {
+		efd, err := tryPerfEventOpenWithProbe(progFd, "kprobe", funcName, 0, isReturn)
+		if err == nil && efd > 0 {
+			probe.efd = efd
+			return nil
+		}
+		probe.OpenWithPerfEvent = err
+	} else {
+		probe.OpenWithPerfEvent = errors.New("maxactive is larger than 0")
+	}
+
+	eventName := probeType + funcName
 	kprobeId, err := writeKprobeEvent(probeType, eventName, funcName, maxactiveStr)
 	// fallback without maxactive
 	if err == kprobeIDNotExist {
@@ -500,33 +521,189 @@ func safeEventName(event string) string {
 
 // AttachUprobe attaches the uprobe's BPF script to the program or library
 // at the given path and offset.
-func AttachUprobe(uprobe *Uprobe, path string, offset uint64) error {
+func AttachUprobe(uprobe *Uprobe, path string, offset uint64) (err error) {
 	var probeType string
+	var isReturn bool
 	if strings.HasPrefix(uprobe.Name, "uretprobe/") {
+		isReturn = true
 		probeType = "r"
 	} else {
 		probeType = "p"
 	}
 	eventName := fmt.Sprintf("%s__%s_%x_gobpf_%d",
 		probeType, safeEventName(path), offset, os.Getpid())
-
 	if _, ok := uprobe.efds[eventName]; ok {
 		return errors.New("uprobe already attached")
 	}
+	var efd int
+	defer func() {
+		if err == nil {
+			uprobe.efds[eventName] = efd
+		}
+	}()
+
+	efd, err = tryPerfEventOpenWithProbe(uprobe.fd, "uprobe", path, offset, isReturn)
+	if err == nil && efd > 0 {
+		return nil
+	}
+	uprobe.OpenWithPerfEvent = err
 
 	uprobeID, err := writeUprobeEvent(probeType, eventName, path, offset)
 	if err != nil {
 		return err
 	}
 
-	efd, err := perfEventOpenTracepoint(uprobeID, uprobe.fd)
+	efd, err = perfEventOpenTracepoint(uprobeID, uprobe.fd)
 	if err != nil {
 		return err
 	}
 
-	uprobe.efds[eventName] = efd
-
 	return nil
+}
+
+type perfEventAttr struct {
+	typ    uint32
+	size   uint32
+	config uint64
+
+	sampleFreqOrPeriod uint64
+
+	sampleType uint64
+	readFormat uint64
+
+	flag uint64
+
+	wakeupEventsOrWatermark uint32
+
+	bpType uint32
+	// union {
+	// 	__u64		bp_addr;
+	// 	__u64		kprobe_func; /* for perf_kprobe */
+	// 	__u64		uprobe_path; /* for perf_uprobe */
+	// 	__u64		config1; /* extension of config */
+	// };
+	config1 uint64
+
+	// union {
+	// 	__u64		bp_len;
+	// 	__u64		kprobe_addr; /* when kprobe_func == NULL */
+	// 	__u64		probe_offset; /* for perf_[k,u]probe */
+	// 	__u64		config2; /* extension of config1 */
+	// };
+	config2 uint64
+
+	branchSampleType uint64 /* enum perf_branch_sample_type */
+
+	/*
+	 * Defines set of user regs to dump on samples.
+	 * See asm/perf_regs.h for details.
+	 */
+	sample_regs_user uint64
+
+	/*
+	 * Defines size of the user stack to dump on samples.
+	 */
+	sample_stack_user uint32
+
+	clockid uint32
+	/*
+	 * Defines set of regs to dump for each sample
+	 * state captured on:
+	 *  - precise = 0: PMU interrupt
+	 *  - precise > 0: sampled instruction
+	 *
+	 * See asm/perf_regs.h for details.
+	 */
+	sampleRegsIntr uint64
+
+	/*
+	 * Wakeup watermark for AUX area
+	 */
+	auxWatermark   uint32
+	sampleMaxStack uint16
+	reserved2      uint16
+	auxSampleSize  uint32
+	reserved3      uint32
+}
+
+// Port from bcc/src/cc/libbpf.c
+func tryPerfEventOpenWithProbe(progFd int, probeType, path string, offset uint64, isReturn bool) (int, error) {
+	var attr perfEventAttr
+	eventType, err := ioutil.ReadFile(fmt.Sprintf("/sys/bus/event_source/devices/%s/type", probeType))
+	if err != nil {
+		return 0, fmt.Errorf("failed to read event type: %s", err)
+	}
+	typ, err := strconv.Atoi(strings.TrimSpace(string(eventType)))
+	if err != nil {
+		return 0, fmt.Errorf("failed to parse event type: %s", err)
+	}
+
+	attr.sampleFreqOrPeriod = 1
+	attr.wakeupEventsOrWatermark = 1
+	if isReturn {
+		data, err := ioutil.ReadFile(fmt.Sprintf("/sys/bus/event_source/devices/%s/format/retprobe", probeType))
+		if err != nil {
+			return 0, fmt.Errorf("failed to read retprobe: %s", err)
+		}
+		isReturnBit, err := strconv.Atoi(strings.TrimPrefix(string(data), "config:"))
+		if err != nil {
+			return 0, fmt.Errorf("failed to parse retprobe: %s", err)
+		}
+
+		attr.config |= 1 << isReturnBit
+	}
+
+	//
+	// struct perf_event_attr in latest perf_event.h has the following
+	// extension to config1 and config2. To keep bcc compatibe with
+	// older perf_event.h, we use config1 and config2 here instead of
+	// kprobe_func, uprobe_path, kprobe_addr, and probe_offset.
+	//
+	// union {
+	//  __u64 bp_addr;
+	//  __u64 kprobe_func;
+	//  __u64 uprobe_path;
+	//  __u64 config1;
+	// };
+	// union {
+	//   __u64 bp_len;
+	//   __u64 kprobe_addr;
+	//   __u64 probe_offset;
+	//   __u64 config2;
+	// };
+	//
+	attr.config2 = offset // config2 here is kprobe_addr or probe_offset
+	attr.size = uint32(unsafe.Sizeof(attr))
+	attr.typ = uint32(typ)
+
+	// the syscall is expecting a null-terminated c-string
+	var pathb [4096]byte
+	for i := 0; i < len(path); i++ {
+		pathb[i] = path[i]
+	}
+	// config1 here is kprobe_func or  uprobe_path
+	attr.config1 = uint64(uintptr(unsafe.Pointer(&pathb)))
+
+	// 1. PID filter is only possible for uprobe events.
+	// 2. perf_event_open API doesn't allow both pid and cpu to be -1.
+	//    So only set it to -1 when PID is not -1.
+	//    Tracing events do not do CPU filtering in any cases.
+	pid, cpu, groupFd := -1, 0, -1
+	r1, _, err := syscall.Syscall6(syscall.SYS_PERF_EVENT_OPEN, uintptr(unsafe.Pointer(&attr)), uintptr(pid), uintptr(cpu), uintptr(groupFd), 1<<3, 0)
+	if int(err.(syscall.Errno)) != 0 {
+		return 0, err
+	}
+
+	efd := int(r1)
+	if _, _, err := syscall.Syscall(syscall.SYS_IOCTL, uintptr(efd), C.PERF_EVENT_IOC_ENABLE, 0); err != 0 {
+		return -1, fmt.Errorf("tryPerfEventOpenWithProbe.ioctl(PERF_EVENT_IOC_ENABLE): %v", err)
+	}
+
+	if _, _, err := syscall.Syscall(syscall.SYS_IOCTL, uintptr(efd), C.PERF_EVENT_IOC_SET_BPF, uintptr(progFd)); err != 0 {
+		return -1, fmt.Errorf("tryPerfEventOpenWithProbe.ioctl(PERF_EVENT_IOC_SET_BPF): %v", err)
+	}
+
+	return efd, nil
 }
 
 func (b *Module) AttachXDP(devName string, secName string) error {
@@ -743,13 +920,17 @@ func (b *Module) closeProbes() error {
 		name := probe.Name
 		isKretprobe := strings.HasPrefix(name, "kretprobe/")
 		var err error
-		if isKretprobe {
-			funcName = strings.TrimPrefix(name, "kretprobe/")
-			err = disableKprobe("r" + funcName)
-		} else {
-			funcName = strings.TrimPrefix(name, "kprobe/")
-			err = disableKprobe("p" + funcName)
+
+		if probe.OpenWithPerfEvent != nil {
+			if isKretprobe {
+				funcName = strings.TrimPrefix(name, "kretprobe/")
+				err = disableKprobe("r" + funcName)
+			} else {
+				funcName = strings.TrimPrefix(name, "kprobe/")
+				err = disableKprobe("p" + funcName)
+			}
 		}
+
 		if err != nil {
 			return fmt.Errorf("error clearing probe: %v", err)
 		}
@@ -763,8 +944,11 @@ func (b *Module) closeUprobes() error {
 			if err := syscall.Close(efd); err != nil {
 				return fmt.Errorf("error closing uprobe's event fd: %v", err)
 			}
-			if err := disableUprobe(eventName); err != nil {
-				return fmt.Errorf("error clearing probe: %v", err)
+
+			if probe.OpenWithPerfEvent != nil {
+				if err := disableUprobe(eventName); err != nil {
+					return fmt.Errorf("error clearing probe: %v", err)
+				}
 			}
 		}
 
