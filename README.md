@@ -59,10 +59,6 @@ sudo -E go run examples/bcc/perf/perf.go
 
 ## Tests
 
-The `semaphore.sh` script can be used to run the tests in rkt stage1-kvm
-containers on different kernel versions. To run all tests on the host system,
-use `go test` as follows:
-
 ```
 go test -tags integration -v ./...
 ```
