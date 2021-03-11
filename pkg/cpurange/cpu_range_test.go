@@ -1,4 +1,4 @@
-package cpuonline
+package cpurange
 
 import (
 	"testing"
@@ -57,7 +57,7 @@ func TestGetOnlineCPUs(t *testing.T) {
 		},
 	}
 	for _, test := range tests {
-		cpus, err := readCPURange(test.data)
+		cpus, err := ReadCPURange(test.data)
 		if test.valid && err != nil {
 			t.Errorf("expected input %q to not return an error but got: %v\n", test.data, err)
 		}
