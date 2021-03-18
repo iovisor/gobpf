@@ -4,12 +4,34 @@
 
 #include "../elf/include/uapi/linux/bpf.h"
 #include "../elf/include/bpf_map.h"
+#include "./dummy_structs.h"
 
 #define SEC(NAME) __attribute__((section(NAME), used))
+
+static int (*bpf_probe_read_str)(char *dst, int size, void *unsafe_ptr) =
+        (void *) BPF_FUNC_probe_read_str;
+static int (*bpf_trace_printk)(const char *fmt, int fmt_size, ...) =
+        (void *) BPF_FUNC_trace_printk;
+static unsigned long long (*bpf_get_smp_processor_id)(void) =
+	(void *) BPF_FUNC_get_smp_processor_id;
+static unsigned long long (*bpf_get_current_pid_tgid)(void) =
+	(void *) BPF_FUNC_get_current_pid_tgid;
+static int (*bpf_perf_event_output)(void *ctx, void *map,
+				    unsigned long long flags, void *data,
+				    int size) =
+	(void *) BPF_FUNC_perf_event_output;
+static void *(*bpf_map_lookup_elem)(struct bpf_map_def *map, void *key) =
+    (void *)BPF_FUNC_map_lookup_elem;
 
 #define PERF_MAX_STACK_DEPTH 127
 
 #define KERNEL_VERSION_GTE(X) (KERNEL_VERSION >= X)
+
+#define bpf_debug(fmt, ...)                                        \
+	({                                                             \
+		char ____fmt[] = fmt;                                      \
+		bpf_trace_printk(____fmt, sizeof(____fmt), ##__VA_ARGS__); \
+	})
 
 struct pt_regs{};
 
@@ -25,6 +47,13 @@ struct bpf_map_def SEC("maps/dummy_array") dummy_array = {
 	.key_size = sizeof(int),
 	.value_size = sizeof(unsigned int),
 	.max_entries = 128,
+};
+
+struct bpf_map_def SEC("maps/master_pid") master_pid_map = {
+	.type = BPF_MAP_TYPE_ARRAY,
+	.key_size = sizeof(int),
+	.value_size = sizeof(unsigned int),
+	.max_entries = 1,
 };
 
 struct bpf_map_def SEC("maps/dummy_prog_array") dummy_prog_array = {
@@ -81,14 +110,43 @@ struct bpf_map_def SEC("maps/dummy_array_custom") dummy_array_custom = {
 	.pinning = PIN_CUSTOM_NS,
 };
 
-SEC("kprobe/dummy")
-int kprobe__dummy(struct pt_regs *ctx)
-{
-	return 0;
+SEC("kprobe/sys_write")
+int kprobe__sys_write(struct pt_regs *ctx) {
+    unsigned int master_pid_map_key = 0;
+    unsigned int *master_pid_ptr = bpf_map_lookup_elem(&master_pid_map, &master_pid_map_key);
+    if (master_pid_ptr == 0) {
+        return 0;
+    }
+
+    unsigned int master_pid = *master_pid_ptr;
+    unsigned int current_pid = bpf_get_current_pid_tgid();
+
+    if (master_pid != current_pid) {
+        return 0;
+    }
+
+    struct S1 s1 = {0x10000011};
+    struct S2 s2 = {0x20000011, 0x20000022};
+    struct S8 s8 = {
+      .a = 0x80000011,
+      .b = 0x80000022,
+      .c = 0x80000033,
+      .d = 0x80000044,
+      .e = 0x80000055,
+      .f = 0x80000066,
+      .g = 0x80000077,
+      .h = 0x80000088
+    };
+
+    bpf_perf_event_output(ctx, &dummy_perf, 0, &s1, sizeof(s1));
+    bpf_perf_event_output(ctx, &dummy_perf, 0, &s2, sizeof(s2));
+    bpf_perf_event_output(ctx, &dummy_perf, 0, &s8, sizeof(s8));
+    return 0;
 }
 
-SEC("kretprobe/dummy")
-int kretprobe__dummy(struct pt_regs *ctx)
+
+SEC("kretprobe/sys_write")
+int kretprobe__sys_write(struct pt_regs *ctx)
 {
 	return 0;
 }
@@ -146,3 +204,5 @@ int xdp_pass(struct xdp_md *ctx) {
 #endif
 
 unsigned int _version SEC("version") = 0xFFFFFFFE;
+
+char _license[] SEC("license") = "GPL";
