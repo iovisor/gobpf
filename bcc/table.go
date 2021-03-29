@@ -277,7 +277,7 @@ func (table *Table) Pop() ([]byte, error) {
 	leaf := make([]byte, leafSize)
 	leafP := unsafe.Pointer(&leaf[0])
 
-	r, err := C.bpf_pop_elem(fd, leafP)
+	r, err := C.bpf_map_pop_elem(fd, leafP)
 	if err != nil {
 		return nil, err
 	}
