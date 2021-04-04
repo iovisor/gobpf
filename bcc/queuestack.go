@@ -13,19 +13,24 @@ import (
 	"unsafe"
 )
 
+// IsQueueStack determines if Table can be used as QueueStack
 func IsQueueStack(table *Table) bool {
 	ttype := C.bpf_table_type_id(table.module.p, table.id)
 	return ttype == C.BPF_MAP_TYPE_QUEUE || ttype == C.BPF_MAP_TYPE_STACK
 }
 
+// QueueStack wraps Table pointer with queue & stack specific methods
 type QueueStack struct {
 	*Table
 }
 
+// NewQueueStack creates a QueueStack wrapper
 func NewQueueStack(table *Table) *QueueStack {
 	return &QueueStack{Table: table}
 }
 
+// Push pushes a new element to a BPF queue or stack.
+// See https://github.com/iovisor/bcc/blob/master/docs/reference_guide.md#28-mappush for flags reference
 func (queue *QueueStack) Push(leaf []byte, flags int) error {
 	fd := C.bpf_table_fd_id(queue.Table.module.p, queue.Table.id)
 
@@ -43,6 +48,8 @@ func (queue *QueueStack) Push(leaf []byte, flags int) error {
 	return nil
 }
 
+// Pop pops an element from a BPF queue or stack and returns it as a byte array.
+// See https://github.com/iovisor/bcc/blob/master/docs/reference_guide.md#29-mappop for flags reference
 func (queue *QueueStack) Pop() ([]byte, error) {
 	fd := C.bpf_table_fd_id(queue.Table.module.p, queue.Table.id)
 
@@ -58,6 +65,8 @@ func (queue *QueueStack) Pop() ([]byte, error) {
 	return leaf, nil
 }
 
+// PopP pops an element from a BPF queue or stack and returns it as a unsafe.Pointer.
+// See https://github.com/iovisor/bcc/blob/master/docs/reference_guide.md#29-mappop for flags reference
 func (queue *QueueStack) PopP() (unsafe.Pointer, error) {
 	fd := C.bpf_table_fd_id(queue.Table.module.p, queue.Table.id)
 
@@ -73,6 +82,7 @@ func (queue *QueueStack) PopP() (unsafe.Pointer, error) {
 	return leafP, nil
 }
 
+// Peek peeks an element from a BPF queue or stack and returns it as a byte array.
 func (queue *QueueStack) Peek() ([]byte, error) {
 	fd := C.bpf_table_fd_id(queue.Table.module.p, queue.Table.id)
 
@@ -88,6 +98,7 @@ func (queue *QueueStack) Peek() ([]byte, error) {
 	return leaf, nil
 }
 
+// PeekP peeks an element from a BPF queue or stack and returns it as an unsafe pointer.
 func (queue *QueueStack) PeekP() (unsafe.Pointer, error) {
 	fd := C.bpf_table_fd_id(queue.Table.module.p, queue.Table.id)
 
