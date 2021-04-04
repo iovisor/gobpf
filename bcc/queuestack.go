@@ -14,7 +14,7 @@ import (
 )
 
 func IsQueueStack(table *Table) bool {
-	ttype := C.bpf_table_type_id(table.module, table.id)
+	ttype := C.bpf_table_type_id(table.module.p, table.id)
 	return ttype == C.BPF_MAP_TYPE_QUEUE || ttype == C.BPF_MAP_TYPE_STACK
 }
 
@@ -31,7 +31,7 @@ func (queue *QueueStack) Push(leaf []byte, flags int) error {
 
 	leafP := unsafe.Pointer(&leaf[0])
 
-	r, err := C.bpf_update_elem(fd, nil, leafP, flags)
+	r, err := C.bpf_update_elem(fd, nil, leafP, C.ulonglong(flags))
 	if r != 0 {
 		leafStr, errL := queue.Table.LeafBytesToStr(leaf)
 		if errL != nil {
