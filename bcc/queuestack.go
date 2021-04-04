@@ -19,7 +19,11 @@ func IsQueueStack(table *Table) bool {
 }
 
 type QueueStack struct {
-	Table
+	*Table
+}
+
+func NewQueueStack(table *Table) *QueueStack {
+	return &QueueStack{Table: table}
 }
 
 func (queue *QueueStack) Push(leaf []byte, flags int) error {
