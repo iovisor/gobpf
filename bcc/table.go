@@ -270,21 +270,6 @@ func (table *Table) DeleteAll() error {
 	return nil
 }
 
-func (table *Table) Pop() ([]byte, error) {
-	fd := C.bpf_table_fd_id(table.module.p, table.id)
-
-	leafSize := C.bpf_table_leaf_size_id(table.module.p, table.id)
-	leaf := make([]byte, leafSize)
-	leafP := unsafe.Pointer(&leaf[0])
-
-	r, err := C.bpf_map_pop_elem(fd, leafP)
-	if err != nil {
-		return nil, err
-	}
-	fmt.Printf("r: %v\n", r)
-	return leaf, nil
-}
-
 // TableIterator contains the current position for iteration over a *bcc.Table and provides methods for iteration.
 type TableIterator struct {
 	table *Table
