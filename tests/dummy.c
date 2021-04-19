@@ -112,19 +112,6 @@ struct bpf_map_def SEC("maps/dummy_array_custom") dummy_array_custom = {
 
 SEC("kprobe/sys_write")
 int kprobe__sys_write(struct pt_regs *ctx) {
-    unsigned int master_pid_map_key = 0;
-    unsigned int *master_pid_ptr = bpf_map_lookup_elem(&master_pid_map, &master_pid_map_key);
-    if (master_pid_ptr == 0) {
-        return 0;
-    }
-
-    unsigned int master_pid = *master_pid_ptr;
-    unsigned int current_pid = bpf_get_current_pid_tgid();
-
-    if (master_pid != current_pid) {
-        return 0;
-    }
-
     struct S1 s1 = {0x10000011};
     struct S2 s2 = {0x20000011, 0x20000022};
     struct S8 s8 = {
