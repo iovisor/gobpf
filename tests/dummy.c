@@ -8,30 +8,14 @@
 
 #define SEC(NAME) __attribute__((section(NAME), used))
 
-static int (*bpf_probe_read_str)(char *dst, int size, void *unsafe_ptr) =
-        (void *) BPF_FUNC_probe_read_str;
-static int (*bpf_trace_printk)(const char *fmt, int fmt_size, ...) =
-        (void *) BPF_FUNC_trace_printk;
-static unsigned long long (*bpf_get_smp_processor_id)(void) =
-	(void *) BPF_FUNC_get_smp_processor_id;
-static unsigned long long (*bpf_get_current_pid_tgid)(void) =
-	(void *) BPF_FUNC_get_current_pid_tgid;
 static int (*bpf_perf_event_output)(void *ctx, void *map,
 				    unsigned long long flags, void *data,
 				    int size) =
 	(void *) BPF_FUNC_perf_event_output;
-static void *(*bpf_map_lookup_elem)(struct bpf_map_def *map, void *key) =
-    (void *)BPF_FUNC_map_lookup_elem;
 
 #define PERF_MAX_STACK_DEPTH 127
 
 #define KERNEL_VERSION_GTE(X) (KERNEL_VERSION >= X)
-
-#define bpf_debug(fmt, ...)                                        \
-	({                                                             \
-		char ____fmt[] = fmt;                                      \
-		bpf_trace_printk(____fmt, sizeof(____fmt), ##__VA_ARGS__); \
-	})
 
 struct pt_regs{};
 
@@ -47,13 +31,6 @@ struct bpf_map_def SEC("maps/dummy_array") dummy_array = {
 	.key_size = sizeof(int),
 	.value_size = sizeof(unsigned int),
 	.max_entries = 128,
-};
-
-struct bpf_map_def SEC("maps/master_pid") master_pid_map = {
-	.type = BPF_MAP_TYPE_ARRAY,
-	.key_size = sizeof(int),
-	.value_size = sizeof(unsigned int),
-	.max_entries = 1,
 };
 
 struct bpf_map_def SEC("maps/dummy_prog_array") dummy_prog_array = {

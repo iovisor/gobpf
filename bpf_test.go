@@ -317,7 +317,6 @@ func checkMaps(t *testing.T, b *elf.Module) {
 		"dummy_prog_array",
 		"dummy_perf",
 		"dummy_array_custom",
-		"master_pid",
 	}
 
 	if kernelVersion >= kernelVersion46 {
