@@ -5,13 +5,28 @@ import (
 	"testing"
 )
 
+const (
+	data = "ffffffff91b2a340 T cgroup_freezing"
+	addr = "ffffffff91b2a340"
+	sym  = "cgroup_freezing"
+)
+
 func TestKsym(t *testing.T) {
-	data := "ffffffff91b2a340 T cgroup_freezing"
 
 	r := strings.NewReader(data)
-	fn := ksym("ffffffff91b2a340", r)
+	fn := kLookup(addr, r, ADDRCOL, SYMCOL)
 
-	if fn != "cgroup_freezing" {
+	if fn != sym {
+		t.Error("unexpected result")
+	}
+}
+
+func TestKaddr(t *testing.T) {
+
+	r := strings.NewReader(data)
+	fn := kLookup(sym, r, SYMCOL, ADDRCOL)
+
+	if fn != addr {
 		t.Error("unexpected result")
 	}
 }
