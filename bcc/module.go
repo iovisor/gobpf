@@ -387,6 +387,23 @@ func (bpf *Module) AttachUprobe(name, symbol string, fd, pid int) error {
 	return bpf.attachUProbe(evName, BPF_PROBE_ENTRY, path, addr, fd, pid)
 }
 
+// AttachUprobeWithSymbolAddr attaches a uprobe fd to the specified `symbolAddr` in the library or binary 'name'
+// The 'name' argument can be given as either a full library path (/usr/lib/..),
+// a library without the lib prefix, or as a binary with full path (/bin/bash)
+// A pid can be given to attach to, or -1 to attach to all processes
+//
+// Presently attempts to trace processes running in a different namespace
+// to the tracer will fail due to limitations around namespace-switching
+// in multi-threaded programs (such as Go programs)
+func (bpf *Module) AttachUprobeWithSymbolAddr(name string, symbolAddr uint64, fd, pid int) error {
+	path, addr, err := resolveSymbolPath(name, "", symbolAddr, pid)
+	if err != nil {
+		return err
+	}
+	evName := fmt.Sprintf("p_%s_0x%x", uprobeRegexp.ReplaceAllString(path, "_"), addr)
+	return bpf.attachUProbe(evName, BPF_PROBE_ENTRY, path, addr, fd, pid)
+}
+
 // AttachMatchingUprobes attaches a uprobe fd to all symbols in the library or binary
 // 'name' that match a given pattern.
 // The 'name' argument can be given as either a full library path (/usr/lib/..),
@@ -422,6 +439,23 @@ func (bpf *Module) AttachMatchingUprobes(name, match string, fd, pid int) error 
 // in multi-threaded programs (such as Go programs)
 func (bpf *Module) AttachUretprobe(name, symbol string, fd, pid int) error {
 	path, addr, err := resolveSymbolPath(name, symbol, 0x0, pid)
+	if err != nil {
+		return err
+	}
+	evName := fmt.Sprintf("r_%s_0x%x", uprobeRegexp.ReplaceAllString(path, "_"), addr)
+	return bpf.attachUProbe(evName, BPF_PROBE_RETURN, path, addr, fd, pid)
+}
+
+// AttachUretprobeWithSymbolAddr attaches a uretprobe fd to the specified `symbolAddr` in the library or binary 'name'
+// The 'name' argument can be given as either a full library path (/usr/lib/..),
+// a library without the lib prefix, or as a binary with full path (/bin/bash)
+// A pid can be given to attach to, or -1 to attach to all processes
+//
+// Presently attempts to trace processes running in a different namespace
+// to the tracer will fail due to limitations around namespace-switching
+// in multi-threaded programs (such as Go programs)
+func (bpf *Module) AttachUretprobeWithSymbolAddr(name string, symbolAddr uint64, fd, pid int) error {
+	path, addr, err := resolveSymbolPath(name, "", symbolAddr, pid)
 	if err != nil {
 		return err
 	}
