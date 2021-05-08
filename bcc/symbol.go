@@ -59,7 +59,32 @@ type bccSymbolOption struct {
 	checkDebugFileCrc int
 	useSymbolType     uint32
 }
-
+//return symbol assigned to the address
+func bccSymbolByAddr(addr uint64, pid int, demangle int) string{
+        pidC := C.int(pid)
+        so := &bccSymbolOption{}
+        soC := (*C.struct_bcc_symbol_option)(unsafe.Pointer(so))
+        cache := C.bcc_symcache_new(pidC, soC)
+        sym := &bccSymbol{}
+        symC := (*C.struct_bcc_symbol)(unsafe.Pointer(sym))
+        addrC := C.uint64_t(addr)
+        defer C.bcc_symbol_free_demangle_name(symC)
+        if demangle > 0 {
+                res := C.bcc_symcache_resolve(cache, addrC, symC)
+                if res < 0 {
+                        return ""
+                }else{
+                        return C.GoString(symC.demangle_name)
+                }
+        }else{
+                res := C.bcc_symcache_resolve_no_demangle(cache, addrC, symC)
+                if res < 0 {
+                        return ""
+                }else{
+                        return C.GoString(symC.name) //symC.name
+                }
+        }
+}
 // resolveSymbolPath returns the file and offset to locate symname in module
 func resolveSymbolPath(module string, symname string, addr uint64, pid int) (string, uint64, error) {
 	if pid == -1 {
