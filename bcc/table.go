@@ -299,6 +299,9 @@ func (it *TableIterator) Next() bool {
 
 	if it.key == nil {
 		keySize := C.bpf_table_key_size_id(it.table.module.p, it.table.id)
+		if keySize == 0 {
+			return false
+		}
 
 		key := make([]byte, keySize)
 		keyP := unsafe.Pointer(&key[0])
