@@ -60,5 +60,5 @@ sudo -E go run examples/bcc/perf/perf.go
 ## Tests
 
 ```
-go test -tags integration -v ./...
+sudo go test -tags integration -v ./...
 ```

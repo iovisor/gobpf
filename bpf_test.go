@@ -20,17 +20,21 @@ import (
 	"bytes"
 	"encoding/binary"
 	"fmt"
+	"github.com/iovisor/gobpf/pkg/test"
+	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strconv"
 	"syscall"
 	"testing"
+	"time"
 	"unsafe"
 
 	"github.com/iovisor/gobpf/bcc"
 	"github.com/iovisor/gobpf/elf"
 	"github.com/iovisor/gobpf/pkg/bpffs"
 	"github.com/iovisor/gobpf/pkg/progtestrun"
+	"github.com/stretchr/testify/assert"
 )
 
 // redefine flags here as cgo in test is not supported
@@ -351,8 +355,8 @@ func checkMaps(t *testing.T, b *elf.Module) {
 
 func checkProbes(t *testing.T, b *elf.Module) {
 	var expectedProbes = []string{
-		"kprobe/dummy",
-		"kretprobe/dummy",
+		"kprobe/__x64_sys_write",
+		"kretprobe/__x64_sys_write",
 	}
 
 	var probes []*elf.Kprobe
@@ -626,6 +630,89 @@ func checkProgTestRun(t *testing.T, b *elf.Module) {
 	}
 }
 
+func checkPerfArray(t *testing.T, b *elf.Module) {
+	receiverChan := make(chan []byte, 100)
+	lostChan := make(chan uint64, 100)
+
+	perfMap, err := elf.InitPerfMap(b, "dummy_perf", receiverChan, lostChan)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	perfMap.PollStart()
+	defer perfMap.PollStop()
+
+	var actualS1 *test.S1
+	var actualS2 *test.S2
+	var actualS8 *test.S8
+
+	finished := make(chan bool)
+
+	go func() {
+	L:
+		for {
+			select {
+			case event := <-receiverChan:
+				s1 := test.ReadS1(event)
+				if s1 != nil {
+					actualS1 = s1
+				}
+				s2 := test.ReadS2(event)
+				if s2 != nil {
+					actualS2 = s2
+				}
+				s8 := test.ReadS8(event)
+				if s8 != nil {
+					actualS8 = s8
+				}
+				if actualS1 != nil && actualS2 != nil && actualS8 != nil {
+					break L
+				}
+			case lost := <-lostChan:
+				assert.Fail(t, "Unexpectedly lost %d events", lost)
+				break L
+			case <-time.After(5000 * time.Millisecond):
+				assert.Fail(t, "Didn't get all expected messages")
+				break L
+			}
+		}
+		finished <- true
+	}()
+
+	// perform test operation that should be detected by kprobe/sys_write
+	tfd, err := ioutil.TempFile("", "*")
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = tfd.WriteString("bpf_integration_test")
+	if err != nil {
+		t.Fatal(err)
+	}
+	_ = tfd.Close()
+
+	<-finished
+
+	expectedS1 := test.S1{0x10000011}
+	expectedS2 := test.S2{0x20000011, 0x20000022}
+	expectedS8 := test.S8{
+		A: 0x80000011,
+		B: 0x80000022,
+		C: 0x80000033,
+		D: 0x80000044,
+		E: 0x80000055,
+		F: 0x80000066,
+		G: 0x80000077,
+		H: 0x80000088,
+	}
+
+	assert.NotNil(t, actualS1)
+	assert.Equal(t, expectedS1, *actualS1)
+	assert.NotNil(t, actualS2)
+	assert.Equal(t, expectedS2, *actualS2)
+	assert.NotNil(t, actualS8)
+	assert.Equal(t, expectedS8, *actualS8)
+}
+
 func TestModuleLoadELF(t *testing.T) {
 	var err error
 	kernelVersion, err = elf.CurrentKernelVersion()
@@ -648,6 +735,9 @@ func TestModuleLoadELF(t *testing.T) {
 		"maps/dummy_array_custom": elf.SectionParams{
 			PinPath: filepath.Join("gobpf-test", "testgroup1"),
 		},
+		"maps/dummy_perf": elf.SectionParams{
+			PerfRingBufferPageCount: 256,
+		},
 	}
 	var closeOptions = map[string]elf.CloseOptions{
 		"maps/dummy_array_custom": elf.CloseOptions{
@@ -664,7 +754,12 @@ func TestModuleLoadELF(t *testing.T) {
 	if b == nil {
 		t.Fatal("prog is nil")
 	}
+	b.EnableOptionCompatProbe()
 	if err := b.Load(secParams); err != nil {
+		t.Fatal(err)
+	}
+	err = b.EnableKprobes(256)
+	if err != nil {
 		t.Fatal(err)
 	}
 	defer func() {
@@ -685,4 +780,5 @@ func TestModuleLoadELF(t *testing.T) {
 	checkUpdateDeleteElement(t, b)
 	checkLookupElement(t, b)
 	checkProgTestRun(t, b)
+	checkPerfArray(t, b)
 }

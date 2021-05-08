@@ -369,7 +369,12 @@ func (pm *PerfMap) PollStart() {
 						case 0:
 							break ringBufferLoop // nothing to read
 						case C.PERF_RECORD_SAMPLE:
-							size := sample.Size - 4
+							var size uint32
+							if sample.Size > 8 {
+								size = sample.Size - 4
+							} else {
+								size = sample.Size
+							}
 							b := C.GoBytes(unsafe.Pointer(&sample.data), C.int(size))
 							incoming.bytesArray = append(incoming.bytesArray, b)
 							harvestCount++
