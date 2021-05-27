@@ -68,6 +68,10 @@ func (b *Module) EnableTracepoint(secName string) error {
 	return errNotSupported
 }
 
+func (b *Module) TrySetKprobeEventNameOpts(evOpts EventNameOption) error {
+	return errNotSupported
+}
+
 func (b *Module) IterMaps() <-chan *Map {
 	return nil
 }
