@@ -536,3 +536,23 @@ func GetSyscallPrefix() string {
 	}
 	return syscallPrefix
 }
+
+func (bpf *Module) NumOpenKprobes() int {
+	return len(bpf.kprobes)
+}
+
+func (bpf *Module) NumOpenUprobes() int {
+	return len(bpf.uprobes)
+}
+
+func (bpf *Module) NumOpenTracepoints() int {
+	return len(bpf.tracepoints)
+}
+
+func (bpf *Module) NumOpenRawTracepoints() int {
+	return len(bpf.rawTracepoints)
+}
+
+func (bpf *Module) NumOpenPerfEvents() int {
+	return len(bpf.perfEvents)
+}
