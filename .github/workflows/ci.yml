@@ -17,7 +17,7 @@ jobs:
           # Use release 9 of llvm etc. - later versions have an unfixed
           # bug on Ubuntu:
           # https://github.com/iovisor/bcc/issues/2915
-          sudo apt-get -y install bison build-essential cmake flex git libelf-dev libfl-dev libedit-dev libllvm9 llvm-9-dev libclang-9-dev python zlib1g-dev
+          sudo apt-get -y install bison build-essential cmake flex git libelf-dev libfl-dev libedit-dev libllvm11 llvm-11-dev libclang-cpp11-dev libclang-common-11-dev libclang1-11 libclang-11-dev python zlib1g-dev
           pushd /tmp
           git clone --depth 1 --branch v0.20.0 https://github.com/iovisor/bcc.git
           mkdir -p bcc/build; cd bcc/build
@@ -25,7 +25,7 @@ jobs:
           # The directory appears only to be created when installing the
           # virtual llvm-dev package.
           # https://github.com/iovisor/bcc/issues/492
-          sudo ln -s /usr/lib/llvm-9 /usr/local/llvm
+          sudo ln -s /usr/lib/llvm-11 /usr/local/llvm
           cmake ..
           make
           sudo make install
