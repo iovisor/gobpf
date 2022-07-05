@@ -31,6 +31,29 @@ import (
 #cgo LDFLAGS: -lbcc
 #include <bcc/bcc_common.h>
 #include <bcc/libbpf.h>
+#include <bcc/bcc_version.h>
+
+#ifndef LIBBCC_VERSION_GEQ
+#define LIBBCC_VERSION_GEQ(a, b, c) 0
+#endif
+
+int bcc_func_load_wrapper(void *program, int prog_type, const char *name,
+						  const struct bpf_insn *insns, int prog_len,
+						  const char *license, unsigned kern_version,
+						  int log_level, char *log_buf, unsigned log_buf_size,
+						  const char *dev_name, int attach_type){
+
+#if LIBBCC_VERSION_GEQ(0, 25, 0)
+    return bcc_func_load(program, prog_type, name, insns, prog_len, license,
+						 kern_version, log_level, log_buf, log_buf_size,
+						 dev_name, attach_type);
+#else
+    return bcc_func_load(program, prog_type, name, insns, prog_len, license,
+						 kern_version, log_level, log_buf, log_buf_size,
+						 dev_name);
+#endif
+}
+
 */
 import "C"
 
@@ -227,7 +250,7 @@ func (bpf *Module) load(name string, progType int, logLevel, logSize uint) (int,
 		logBuf = make([]byte, logSize)
 		logBufP = (*C.char)(unsafe.Pointer(&logBuf[0]))
 	}
-	fd, err := C.bcc_func_load(bpf.p, C.int(uint32(progType)), nameCS, start, size, license, version, C.int(logLevel), logBufP, C.uint(len(logBuf)), nil)
+	fd, err := C.bcc_func_load_wrapper(bpf.p, C.int(uint32(progType)), nameCS, start, size, license, version, C.int(logLevel), logBufP, C.uint(len(logBuf)), nil, C.int(-1))
 	if fd < 0 {
 		return -1, fmt.Errorf("error loading BPF program: %v", err)
 	}
