@@ -41,6 +41,14 @@ func TestParseTraceLine(t *testing.T) {
 				Message:  "hello: world",
 			},
 		},
+				{
+			"         systemd-1       [001] d...1 223345.525322: bpf_trace_printk: hello world!!!\n",
+			TraceEvent{
+				Task:     "systemd",
+				Function: "bpf_trace_printk",
+				Message:  "hello world!!!",
+			},
+		},
 	}
 	for _, testEvent := range testEvents {
 		result, err := parseTraceLine(testEvent.input)
