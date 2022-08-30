@@ -19,7 +19,7 @@ jobs:
           # https://github.com/iovisor/bcc/issues/2915
           sudo apt-get -y install bison build-essential cmake flex git libelf-dev libfl-dev libedit-dev libllvm11 llvm-11-dev libclang-cpp11-dev libclang-common-11-dev libclang1-11 libclang-11-dev python zlib1g-dev
           pushd /tmp
-          git clone --depth 1 --branch v0.20.0 https://github.com/iovisor/bcc.git
+          git clone --depth 1 --branch v0.25.0 https://github.com/iovisor/bcc.git
           mkdir -p bcc/build; cd bcc/build
           # Symlink /usr/lib/llvm to avoid "Unable to find clang libraries"
           # The directory appears only to be created when installing the
