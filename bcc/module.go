@@ -542,6 +542,14 @@ func (bpf *Module) RemoveXDP(devName string) error {
 	return bpf.attachXDP(devName, -1, 0)
 }
 
+// translate address to symbol for specific pid
+func (bpf *Module) GetSymbolByAddr(addr uint64, pid int) string {
+        return bccSymbolByAddr(addr,pid,1)
+}
+func (bpf *Module) GetDemangleSymbolByAddr(addr uint64, pid int) string {
+        return bccSymbolByAddr(addr,pid,0)
+}
+
 func GetSyscallFnName(name string) string {
 	return GetSyscallPrefix() + name
 }
