@@ -837,14 +837,14 @@ union bpf_attr {
  *
  * 			int ret;
  * 			struct bpf_tunnel_key key = {};
- * 			
+ *
  * 			ret = bpf_skb_get_tunnel_key(skb, &key, sizeof(key), 0);
  * 			if (ret < 0)
  * 				return TC_ACT_SHOT;	// drop packet
- * 			
+ *
  * 			if (key.remote_ipv4 != 0x0a000001)
  * 				return TC_ACT_SHOT;	// drop packet
- * 			
+ *
  * 			return TC_ACT_OK;		// accept packet
  *
  * 		This interface can also be used with all encapsulation devices
@@ -3053,5 +3053,13 @@ struct bpf_line_info {
 	__u32	line_off;
 	__u32	line_col;
 };
+
+#ifndef SO_ATTACH_BPF
+#define SO_ATTACH_BPF 50
+#endif
+
+#ifndef SO_DETACH_BPF
+#define SO_DETACH_BPF SO_DETACH_FILTER
+#endif
 
 #endif /* _UAPI__LINUX_BPF_H__ */
