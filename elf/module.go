@@ -138,6 +138,8 @@ type Module struct {
 	schedPrograms      map[string]*SchedProgram
 	xdpPrograms        map[string]*XDPProgram
 
+	kprobeEvOpts EventNameOption
+
 	compatProbe bool // try to be automatically convert function names depending on kernel versions (SyS_ and __x64_sys_)
 }
 
@@ -149,6 +151,10 @@ type Kprobe struct {
 	fd    int
 	efd   int
 }
+
+// EventNameOption is a function type which take eventName
+// then return the new eventName string
+type EventNameOption func(eventName string) string
 
 type Uprobe struct {
 	Name  string
@@ -331,6 +337,30 @@ func (b *Module) EnableOptionCompatProbe() {
 	b.compatProbe = true
 }
 
+// TrySetKprobeEventNameOpts Try to set kprobe EventNameOption function.
+// If Module.kprobeEvOpts already set, return error.
+func (b *Module) TrySetKprobeEventNameOpts(evOpts EventNameOption) error {
+	if b.kprobeEvOpts != nil {
+		return fmt.Errorf("kprobe eventname option is already set. this might corrupt")
+	}
+	// To prevent any error, detour safeEventName function to remove illegal characters.
+	b.kprobeEvOpts = func(eventName string) string {
+		return safeEventName(evOpts(eventName))
+	}
+	return nil
+}
+
+func (b *Module) kprobeEventName(originalEventName string) string {
+	var eventName string
+	if b.kprobeEvOpts != nil {
+		eventName = b.kprobeEvOpts(originalEventName)
+	} else {
+		eventName = originalEventName
+	}
+	return eventName
+}
+
+
 // EnableKprobe enables a kprobe/kretprobe identified by secName.
 // For kretprobes, you can configure the maximum number of instances
 // of the function that can be probed simultaneously with maxactive.
@@ -356,7 +386,7 @@ func (b *Module) EnableKprobe(secName string, maxactive int) error {
 		probeType = "p"
 		funcName = strings.TrimPrefix(secName, "kprobe/")
 	}
-	eventName := probeType + funcName
+	eventName := b.kprobeEventName(probeType + funcName)
 
 	kprobeId, err := writeKprobeEvent(probeType, eventName, funcName, maxactiveStr)
 	// fallback without maxactive
@@ -745,10 +775,10 @@ func (b *Module) closeProbes() error {
 		var err error
 		if isKretprobe {
 			funcName = strings.TrimPrefix(name, "kretprobe/")
-			err = disableKprobe("r" + funcName)
+			err = disableKprobe(b.kprobeEventName("r" + funcName))
 		} else {
 			funcName = strings.TrimPrefix(name, "kprobe/")
-			err = disableKprobe("p" + funcName)
+			err = disableKprobe(b.kprobeEventName("p" + funcName))
 		}
 		if err != nil {
 			return fmt.Errorf("error clearing probe: %v", err)
