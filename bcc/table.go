@@ -59,6 +59,12 @@ func (table *Table) Name() string {
 	return C.GoString(C.bpf_table_name(table.module.p, table.id))
 }
 
+// Fd returns the table file descriptor.
+func (table *Table) Fd() int {
+	mod := table.module.p
+	return int(C.bpf_table_fd_id(mod, table.id))
+}
+
 // Config returns the table properties (name, fd, ...).
 func (table *Table) Config() map[string]interface{} {
 	mod := table.module.p
@@ -221,6 +227,22 @@ func (table *Table) SetP(key, leaf unsafe.Pointer) error {
 	fd := C.bpf_table_fd_id(table.module.p, table.id)
 
 	_, err := C.bpf_update_elem(fd, key, leaf, 0)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// SetMap sets a key to values for BPF_HASH_OF_MAPS and BPF_ARRAY_OF_MAPS.
+func (table *Table) SetMap(key unsafe.Pointer, innerMapFd int) error {
+	fd := C.bpf_table_fd_id(table.module.p, table.id)
+
+	leaf := make([]byte, 8)
+	GetHostByteOrder().PutUint64(leaf, uint64(innerMapFd))
+	leafP := unsafe.Pointer(&leaf[0])
+
+	_, err := C.bpf_update_elem(fd, key, leafP, 0)
 	if err != nil {
 		return err
 	}
