@@ -49,6 +49,15 @@ func KernelVersionFromReleaseString(releaseString string) (uint32, error) {
 	if err != nil {
 		return 0, err
 	}
+
+	// Apply same clamping as done by kernel when SUBLEVEL approaches 255
+	// See https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/commit/?id=a256aac5b7000
+	if major == 4 && minor == 14 && patch >= 252 {
+		patch = 255
+	} else if major == 4 && minor == 19 && patch >= 222 {
+		patch = 255
+	}
+
 	out := major*256*256 + minor*256 + patch
 	return uint32(out), nil
 }
