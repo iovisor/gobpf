@@ -556,6 +556,15 @@ func (b *Module) RemoveXDP(devName string) error {
 	return nil
 }
 
+// RemoveXDPWithFlags removes an xdp section from a device
+// using the provided flags.
+func (b *Module) RemoveXDPWithFlags(devName string, flags uint32) error {
+	if err := attachXDP(devName, -1, flags, false); err != nil {
+		return err
+	}
+	return nil
+}
+
 func attachXDP(devName string, fd int, flags uint32, attach bool) error {
 	devNameCS := C.CString(devName)
 	res, err := C.bpf_attach_xdp(devNameCS, C.int(fd), C.uint32_t(flags))
