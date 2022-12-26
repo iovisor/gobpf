@@ -548,12 +548,23 @@ func GetSyscallFnName(name string) string {
 
 var syscallPrefix string
 
+func canFindName(symbol string) bool {
+	_, err := bccResolveName("", symbol, -1)
+	return err == nil
+}
 func GetSyscallPrefix() string {
 	if syscallPrefix == "" {
-		_, err := bccResolveName("", "__x64_sys_bpf", -1)
-		if err == nil {
-			syscallPrefix = "__x64_sys_"
-		} else {
+		symbolToPrefix := map[string]string{
+			"__x64_sys_bpf":   "__x64_sys_",
+			"__arm64_sys_bpf": "__arm64_sys_",
+		}
+		for symbol, prefix := range symbolToPrefix {
+			if canFindName(symbol) {
+				syscallPrefix = prefix
+				break
+			}
+		}
+		if syscallPrefix == "" {
 			syscallPrefix = "sys_"
 		}
 	}
