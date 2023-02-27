@@ -1,4 +1,4 @@
-// +build linux,arm linux,ppc64 linux,ppc64le s390x
+// +build linux,arm linux,ppc64 linux,ppc64le linux,riscv64 s390x
 
 package elf
 
