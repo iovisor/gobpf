@@ -393,6 +393,58 @@ func (bpf *Module) AttachPerfEvent(evType, evConfig int, samplePeriod int, sampl
 	return nil
 }
 
+// OpenPerfEvent attaches perf events, describe by parameters `typ` and `config`, to a Table.
+// The described perf event counters can be fetched in `BPF_PERF_ARRAY` that the Table is associated with.
+// a typical invocation process is as the following
+// in BPF program:
+// BPF_PERF_ARRAY(cpu_cycles, NUM_CPUS);
+// ...
+// u64 val = cpu_cycles.perf_read(CUR_CPU_IDENTIFIER);
+// In go program:
+// evType := unix.PERF_TYPE_HARDWARE
+// evConfig := unix.PERF_COUNT_HW_CPU_CYCLES
+// t := bpf.NewTable(m.TableId("cpu_cycles"), m)
+// if t != nil { return bpf.OpenPerfEvent(t, evType, evConfig) }
+func (bpf *Module) OpenPerfEvent(table *bpf.Table, typ, config int) error {
+	// the perf key is different from those used by `AttachPerfEvent`
+	perfKey := fmt.Sprintf("perf:%d:%d", typ, config)
+	if _, ok := bpf.perfEvents[perfKey]; ok {
+		return nil
+	}
+
+	cpus, err := cpuonline.Get()
+	if err != nil {
+		return fmt.Errorf("failed to determine online cpus: %v", err)
+	}
+	keySize := table.Config()["key_size"].(uint64)
+	leafSize := table.Config()["leaf_size"].(uint64)
+
+	if keySize != 4 || leafSize != 4 {
+		return fmt.Errorf("passed table has wrong size")
+	}
+
+	res := []int{}
+
+	for _, i := range cpus {
+		fd, err := C.bpf_open_perf_event(C.uint(typ), C.ulong(config), C.int(-1), C.int(i))
+		if fd < 0 {
+			return fmt.Errorf("failed to open bpf perf event: %v", err)
+		}
+		key := make([]byte, keySize)
+		leaf := make([]byte, leafSize)
+		byteOrder.PutUint32(key, uint32(i))
+		byteOrder.PutUint32(leaf, uint32(fd))
+		keyP := unsafe.Pointer(&key[0])
+		leafP := unsafe.Pointer(&leaf[0])
+		table.SetP(keyP, leafP)
+		res = append(res, int(fd))
+	}
+
+	bpf.perfEvents[perfKey] = res
+
+	return nil
+}
+
 // AttachUprobe attaches a uprobe fd to the symbol in the library or binary 'name'
 // The 'name' argument can be given as either a full library path (/usr/lib/..),
 // a library without the lib prefix, or as a binary with full path (/bin/bash)
