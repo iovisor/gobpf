@@ -53,7 +53,7 @@ static void create_bpf_lookup_elem(int fd, void *key, void *value, void *attr)
 	ptr_bpf_attr->value = ptr_to_u64(value);
 }
 
-static int next_bpf_elem(int fd, void *key, void *next_key, void *attr)
+static void next_bpf_elem(int fd, void *key, void *next_key, void *attr)
 {
 	union bpf_attr* ptr_bpf_attr;
 	ptr_bpf_attr = (union bpf_attr*)attr;
