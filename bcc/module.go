@@ -353,10 +353,22 @@ func (bpf *Module) AttachRawTracepoint(name string, fd int) error {
 	return nil
 }
 
-// AttachPerfEvent attaches a perf event fd to a function
+// AttachPerfEvent attaches a perf event fd to a function.
 // Argument 'evType' is a member of 'perf_type_id' enum in the kernel
 // header 'include/uapi/linux/perf_event.h'. Argument 'evConfig'
 // is one of PERF_COUNT_* constants in the same file.
+//
+// Arguments 'samplePeriod' and 'sampleFreq' are mutually exclusive.
+// A sampling event is one that generates an overflow notification every N events,
+// where N is given by samplePeriod.
+// Argument 'sampleFreq' can be used if you wish to use frequency rather than period.
+// The kernel will adjust the sampling period to try and achieve the desired rate.
+//
+// Arguments 'pid' and 'cpu' specify which process and CPU to monitor.
+//
+// Argument 'groupFd' allows event groups to be created. An event group has one event which
+// is the group leader. A single event is considered a group with only 1 member with
+// groupFd = -1. Argument 'fd' is the program fd.
 func (bpf *Module) AttachPerfEvent(evType, evConfig int, samplePeriod int, sampleFreq int, pid, cpu, groupFd, fd int) error {
 	key := fmt.Sprintf("%d:%d", evType, evConfig)
 	if _, ok := bpf.perfEvents[key]; ok {
