@@ -93,11 +93,13 @@ int bpf_prog_detach(int prog_fd, int target_fd, enum bpf_attach_type type)
 
 int bpf_attach_socket(int sock, int fd)
 {
+	const SO_ATTACH_BPF = 50;
 	return setsockopt(sock, SOL_SOCKET, SO_ATTACH_BPF, &fd, sizeof(fd));
 }
 
 int bpf_detach_socket(int sock, int fd)
 {
+	const SO_DETACH_BPF = 27;
 	return setsockopt(sock, SOL_SOCKET, SO_DETACH_BPF, &fd, sizeof(fd));
 }
 
