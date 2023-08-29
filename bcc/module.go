@@ -29,6 +29,7 @@ import (
 /*
 #cgo CFLAGS: -I/usr/include/bcc/compat
 #cgo LDFLAGS: -lbcc
+
 #include <bcc/bcc_common.h>
 #include <bcc/libbpf.h>
 #include <bcc/bcc_version.h>
@@ -257,8 +258,10 @@ func (bpf *Module) load(name string, progType int, logLevel, logSize uint) (int,
 	return int(fd), nil
 }
 
-var kprobeRegexp = regexp.MustCompile("[+.]")
-var uprobeRegexp = regexp.MustCompile("[^a-zA-Z0-9_]")
+var (
+	kprobeRegexp = regexp.MustCompile("[+.]")
+	uprobeRegexp = regexp.MustCompile("[^a-zA-Z0-9_]")
+)
 
 func (bpf *Module) attachProbe(evName string, attachType uint32, fnName string, fd int, maxActive int) error {
 	if _, ok := bpf.kprobes[evName]; ok {
@@ -475,6 +478,14 @@ func (bpf *Module) AttachMatchingUretprobes(name, match string, fd, pid int) err
 		}
 	}
 	return nil
+}
+
+func (bpf *Module) GetSymbolByAddr(addr uint64, pid int) string {
+	return bccSymbolByAddr(addr, pid, 1)
+}
+
+func (bpf *Module) GetDemangleSymbolByAddr(addr uint64, pid int) string {
+	return bccSymbolByAddr(addr, pid, 0)
 }
 
 // TableSize returns the number of tables in the module.

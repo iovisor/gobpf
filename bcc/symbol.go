@@ -36,7 +36,7 @@ type symbolAddress struct {
 	addr uint64
 }
 
-//symbolCache will cache module lookups
+// symbolCache will cache module lookups
 var symbolCache = struct {
 	cache         map[string][]*symbolAddress
 	currentModule string
@@ -155,10 +155,10 @@ func matchUserSymbols(module, match string) ([]*symbolAddress, error) {
 
 // foreach_symbol_callback is a gateway function that will be exported to C
 // so that it can be referenced as a function pointer
+//
 //export foreach_symbol_callback
 func foreach_symbol_callback(symname *C.char, addr C.uint64_t) {
-	symbolCache.cache[symbolCache.currentModule] =
-		append(symbolCache.cache[symbolCache.currentModule], &symbolAddress{C.GoString(symname), (uint64)(addr)})
+	symbolCache.cache[symbolCache.currentModule] = append(symbolCache.cache[symbolCache.currentModule], &symbolAddress{C.GoString(symname), (uint64)(addr)})
 }
 
 func bccForeachSymbol(module string) error {
@@ -169,4 +169,30 @@ func bccForeachSymbol(module string) error {
 		return fmt.Errorf("unable to list symbols for %s", module)
 	}
 	return nil
+}
+
+func bccSymbolByAddr(addr uint64, pid int, demangle int) string {
+	pidC := C.int(pid)
+	so := &bccSymbolOption{}
+	soC := (*C.struct_bcc_symbol_option)(unsafe.Pointer(so))
+	cache := C.bcc_symcache_new(pidC, soC)
+	sym := &bccSymbol{}
+	symC := (*C.struct_bcc_symbol)(unsafe.Pointer(sym))
+	addrC := C.uint64_t(addr)
+	defer C.bcc_symbol_free_demangle_name(symC)
+	if demangle > 0 {
+		res := C.bcc_symcache_resolve(cache, addrC, symC)
+		if res < 0 {
+			return ""
+		} else {
+			return C.GoString(symC.demangle_name)
+		}
+	} else {
+		res := C.bcc_symcache_resolve_no_demangle(cache, addrC, symC)
+		if res < 0 {
+			return ""
+		} else {
+			return C.GoString(symC.name) // symC.name
+		}
+	}
 }
