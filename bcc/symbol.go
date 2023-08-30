@@ -57,6 +57,7 @@ type bccSymbol struct {
 type bccSymbolOption struct {
 	useDebugFile      int
 	checkDebugFileCrc int
+	lazySymbolize     int
 	useSymbolType     uint32
 }
 
@@ -173,7 +174,12 @@ func bccForeachSymbol(module string) error {
 
 func bccSymbolByAddr(addr uint64, pid int, demangle int) string {
 	pidC := C.int(pid)
-	so := &bccSymbolOption{}
+	so := &bccSymbolOption{
+		useDebugFile:      1,
+		checkDebugFileCrc: 1,
+		lazySymbolize:     1,
+		useSymbolType:     (1 << 2) | (1 << 10),
+	}
 	soC := (*C.struct_bcc_symbol_option)(unsafe.Pointer(so))
 	cache := C.bcc_symcache_new(pidC, soC)
 	sym := &bccSymbol{}

@@ -18,6 +18,7 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"log"
 	"os"
 	"unsafe"
 
@@ -27,9 +28,16 @@ import (
 /*
 #cgo CFLAGS: -I/usr/include/bcc/compat
 #cgo LDFLAGS: -lbcc
-#include <linux/bpf.h>
+
 #include <bcc/bcc_common.h>
+#include <bcc/bcc_syms.h>
 #include <bcc/libbpf.h>
+#include <linux/bpf.h>
+
+struct stacktrace_t {
+  uintptr_t ip[127];
+};
+
 */
 import "C"
 
@@ -38,7 +46,9 @@ var errIterationFailed = errors.New("table.Iter: leaf for next key not found")
 // Table references a BPF table.  The zero value cannot be used.
 type Table struct {
 	id     C.size_t
+	fd     C.int
 	module *Module
+	pidSym map[int]unsafe.Pointer
 }
 
 // New tables returns a refernce to a BPF table.
@@ -46,6 +56,8 @@ func NewTable(id C.size_t, module *Module) *Table {
 	return &Table{
 		id:     id,
 		module: module,
+		fd:     C.bpf_table_fd_id(module.p, id),
+		pidSym: make(map[int]unsafe.Pointer),
 	}
 }
 
@@ -268,6 +280,92 @@ func (table *Table) DeleteAll() error {
 		}
 	}
 	return nil
+}
+
+/*
+	std::vector<uintptr_t> BPFStackTable::get_stack_addr(int stack_id) {
+	  std::vector<uintptr_t> res;
+	  stacktrace_t stack;
+	  if (stack_id < 0)
+	    return res;
+	  if (!lookup(&stack_id, &stack))
+	    return res;
+	  for (int i = 0; (i < BPF_MAX_STACK_DEPTH) && (stack.ip[i] != 0); i++)
+	    res.push_back(stack.ip[i]);
+	  return res;
+	}
+*/
+
+// From src/cc/export/helpers.h
+const BPF_MAX_STACK_DEPTH = 127
+
+type Stacktrace struct {
+	IP [BPF_MAX_STACK_DEPTH]uintptr
+}
+
+func (table *Table) remove(key unsafe.Pointer) bool {
+	return C.bpf_delete_elem(table.fd, key) >= 0
+}
+
+func (table *Table) GetStackAddr(stackId int) []uintptr {
+	if stackId < 0 {
+		return nil
+	}
+
+	var res []uintptr
+	stack := &C.struct_stacktrace_t{}
+
+	if !table.lookup(unsafe.Pointer(&stackId), unsafe.Pointer(stack)) {
+		return res
+	}
+	for i := 0; (i < BPF_MAX_STACK_DEPTH) && (stack.ip[i] != 0); i++ {
+		res = append(res, uintptr(stack.ip[i]))
+	}
+
+	table.remove(unsafe.Pointer(&stackId))
+	log.Printf("stack id: %v size: %d", stackId, len(res))
+	return res
+}
+
+func (table *Table) GetStackSymbol(stackId int, pid int) []string {
+	addresses := table.GetStackAddr(stackId)
+	if len(addresses) == 0 {
+		return nil
+	}
+	if pid < 0 {
+		pid = -1
+	}
+
+	var res []string
+
+	so := &bccSymbolOption{
+		useDebugFile:      0,
+		checkDebugFileCrc: 0,
+		lazySymbolize:     1,
+		useSymbolType:     (1 << 2) | (1 << 10),
+	}
+	pidC := C.int(pid)
+	soC := (*C.struct_bcc_symbol_option)(unsafe.Pointer(so))
+	cache := C.bcc_symcache_new(pidC, soC)
+	table.pidSym[pid] = cache
+	sym := &bccSymbol{}
+	symC := (*C.struct_bcc_symbol)(unsafe.Pointer(sym))
+	for addr := range addresses {
+		addrC := C.uint64_t(addr)
+		ret := C.bcc_symcache_resolve(cache, addrC, symC)
+		if ret < 0 {
+			res = append(res, "[UNKNOWN]")
+		} else {
+			res = append(res, C.GoString(symC.demangle_name))
+			C.bcc_symbol_free_demangle_name(symC)
+		}
+	}
+	return res
+}
+
+func (table *Table) lookup(key, value unsafe.Pointer) bool {
+	fd := C.bpf_table_fd_id(table.module.p, table.id)
+	return C.bpf_lookup_elem(C.int(fd), key, value) >= 0
 }
 
 // TableIterator contains the current position for iteration over a *bcc.Table and provides methods for iteration.

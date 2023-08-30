@@ -17,6 +17,7 @@ package bcc
 import (
 	"encoding/binary"
 	"fmt"
+	"log"
 	"sync"
 	"unsafe"
 
@@ -52,10 +53,12 @@ type callbackData struct {
 // BPF_PERF_READER_PAGE_CNT is the default page_cnt used per cpu ring buffer
 const BPF_PERF_READER_PAGE_CNT = 8
 
-var byteOrder binary.ByteOrder
-var callbackRegister = make(map[uint64]*callbackData)
-var callbackIndex uint64
-var mu sync.Mutex
+var (
+	byteOrder        binary.ByteOrder
+	callbackRegister = make(map[uint64]*callbackData)
+	callbackIndex    uint64
+	mu               sync.Mutex
+)
 
 // In lack of binary.HostEndian ...
 func init() {
@@ -88,6 +91,7 @@ func lookupCallback(i uint64) *callbackData {
 // be written. This is because we can't take the address of a Go
 // function and give that to C-code since the cgo tool will generate a
 // stub in C that should be called."
+//
 //export rawCallback
 func rawCallback(cbCookie unsafe.Pointer, raw unsafe.Pointer, rawSize C.int) {
 	callbackData := lookupCallback(uint64(uintptr(cbCookie)))
@@ -190,7 +194,8 @@ func (pm *PerfMap) Start() {
 // have a way to cancel the poll, but perf_reader_poll doesn't
 // support that yet.
 func (pm *PerfMap) Stop() {
-	pm.stop <- true
+	log.Printf("stopping...")
+	close(pm.stop)
 }
 
 func (pm *PerfMap) poll(timeout int) {

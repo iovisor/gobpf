@@ -1,3 +1,4 @@
+//go:build linux
 // +build linux
 
 // Copyright 2016 Cilium Project
@@ -217,7 +218,6 @@ func newModule(logSize uint32) *Module {
 }
 
 func NewModuleWithLog(fileName string, logSize uint32) *Module {
-
 	module := newModule(logSize)
 	module.fileName = fileName
 	return module
@@ -230,7 +230,6 @@ func NewModuleFromReaderWithLog(fileReader io.ReaderAt, logSize uint32) *Module 
 }
 
 func NewModule(fileName string) *Module {
-
 	module := newModule(defaultLogSize)
 	module.fileName = fileName
 	return module
@@ -246,7 +245,7 @@ var kprobeIDNotExist error = errors.New("kprobe id file doesn't exist")
 
 func writeKprobeEvent(probeType, eventName, funcName, maxactiveStr string) (int, error) {
 	kprobeEventsFileName := "/sys/kernel/debug/tracing/kprobe_events"
-	f, err := os.OpenFile(kprobeEventsFileName, os.O_APPEND|os.O_WRONLY, 0666)
+	f, err := os.OpenFile(kprobeEventsFileName, os.O_APPEND|os.O_WRONLY, 0o666)
 	if err != nil {
 		return -1, fmt.Errorf("cannot open kprobe_events: %v", err)
 	}
@@ -276,7 +275,7 @@ func writeKprobeEvent(probeType, eventName, funcName, maxactiveStr string) (int,
 
 func writeUprobeEvent(probeType, eventName, path string, offset uint64) (int, error) {
 	uprobeEventsFileName := "/sys/kernel/debug/tracing/uprobe_events"
-	f, err := os.OpenFile(uprobeEventsFileName, os.O_APPEND|os.O_WRONLY, 0666)
+	f, err := os.OpenFile(uprobeEventsFileName, os.O_APPEND|os.O_WRONLY, 0o666)
 	if err != nil {
 		return -1, fmt.Errorf("cannot open uprobe_events: %v", err)
 	}
