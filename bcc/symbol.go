@@ -171,34 +171,3 @@ func bccForeachSymbol(module string) error {
 	}
 	return nil
 }
-
-func bccSymbolByAddr(addr uint64, pid int, demangle int) string {
-	pidC := C.int(pid)
-	so := &bccSymbolOption{
-		useDebugFile:      1,
-		checkDebugFileCrc: 1,
-		lazySymbolize:     1,
-		useSymbolType:     (1 << 2) | (1 << 10),
-	}
-	soC := (*C.struct_bcc_symbol_option)(unsafe.Pointer(so))
-	cache := C.bcc_symcache_new(pidC, soC)
-	sym := &bccSymbol{}
-	symC := (*C.struct_bcc_symbol)(unsafe.Pointer(sym))
-	addrC := C.uint64_t(addr)
-	defer C.bcc_symbol_free_demangle_name(symC)
-	if demangle > 0 {
-		res := C.bcc_symcache_resolve(cache, addrC, symC)
-		if res < 0 {
-			return ""
-		} else {
-			return C.GoString(symC.demangle_name)
-		}
-	} else {
-		res := C.bcc_symcache_resolve_no_demangle(cache, addrC, symC)
-		if res < 0 {
-			return ""
-		} else {
-			return C.GoString(symC.name) // symC.name
-		}
-	}
-}

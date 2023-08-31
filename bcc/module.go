@@ -480,14 +480,6 @@ func (bpf *Module) AttachMatchingUretprobes(name, match string, fd, pid int) err
 	return nil
 }
 
-func (bpf *Module) GetSymbolByAddr(addr uint64, pid int) string {
-	return bccSymbolByAddr(addr, pid, 1)
-}
-
-func (bpf *Module) GetDemangleSymbolByAddr(addr uint64, pid int) string {
-	return bccSymbolByAddr(addr, pid, 0)
-}
-
 // TableSize returns the number of tables in the module.
 func (bpf *Module) TableSize() uint64 {
 	size := C.bpf_num_tables(bpf.p)

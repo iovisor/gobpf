@@ -101,10 +101,7 @@ func main() {
 		channel := make(chan []byte)
 		histogram := bpf.NewTable(m.TableId("histogram"), m)
 
-		numPages := ((1024 * 1024) + (os.Getpagesize() - 1)) / os.Getpagesize()
-		numPages = pow(numPages)
-		log.Printf("PAGE SIZE: %v", numPages)
-		perfMap, err := bpf.InitPerfMapWithPageCnt(histogram, channel, nil, numPages)
+		perfMap, err := bpf.InitPerfMap(histogram, channel, nil)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Failed to init perf map: %s\n", err)
 			os.Exit(1)
@@ -137,18 +134,23 @@ func main() {
 		var v int
 		if stack.user_stack_id > 0 {
 			v += count
-			symbols = stackTable.GetStackSymbol(int(stack.user_stack_id), pid)
+			addrs := stackTable.GetStackAddr(int(stack.user_stack_id), true)
+			for _, addr := range addrs {
+				symbols = append(symbols, stackTable.GetAddrSymbol(addr, pid))
+			}
 		}
 
-		// if k.KernelStackId > 0 {
-		// 	v := (*uint64)(unsafe.Pointer(&val[0]))
-		// 	count += int(*v)
-		// 	symbols = stackTable.GetStackSymbol(uint64(k.KernelStackId), -1)
-		// }
+		if stack.kernel_stack_id > 0 {
+			v += count
+			addrs := stackTable.GetStackAddr(int(stack.user_stack_id), true)
+			for _, addr := range addrs {
+				symbols = append(symbols, stackTable.GetAddrSymbol(addr, pid))
+			}
+		}
+
 		if len(symbols) != 0 {
 			all[strings.Join(symbols, ";")] += count
 		}
-
 	}
 
 	for k, v := range all {
